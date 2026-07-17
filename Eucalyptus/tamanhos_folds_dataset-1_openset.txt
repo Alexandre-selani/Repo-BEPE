@@ -1,0 +1,45 @@
+--------------FOLD 0----------------
+TRAIN: 355
+
+VAL_KKC: 40
+VAL_UUC: 39   TOTAL: 79
+
+TEST_KKC: 99
+TEST_UUC: 156   TOTAL: 255
+
+--------------FOLD 1----------------
+TRAIN: 355
+
+VAL_KKC: 40
+VAL_UUC: 39   TOTAL: 79
+
+TEST_KKC: 99
+TEST_UUC: 156   TOTAL: 255
+
+--------------FOLD 2----------------
+TRAIN: 355
+
+VAL_KKC: 40
+VAL_UUC: 39   TOTAL: 79
+
+TEST_KKC: 99
+TEST_UUC: 156   TOTAL: 255
+
+--------------FOLD 3----------------
+TRAIN: 355
+
+VAL_KKC: 40
+VAL_UUC: 39   TOTAL: 79
+
+TEST_KKC: 99
+TEST_UUC: 156   TOTAL: 255
+
+--------------FOLD 4----------------
+TRAIN: 356
+
+VAL_KKC: 40
+VAL_UUC: 39   TOTAL: 79
+
+TEST_KKC: 98
+TEST_UUC: 156   TOTAL: 254
+

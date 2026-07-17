@@ -1,0 +1,46 @@
+-------------CONTEÚDO----------------
+splits = {
+    "mnist_train_idx": train_dataset.indices,
+    "mnist_val_idx": mnist_val_dataset.indices,
+    "omniglot_test_idx": test_omniglot_reduzido.indices,
+    "omniglot_val_idx": val_omniglot_reduzido.indices,
+}
+
+"mnist_train_idx" - contém os índices das amostras de treinamento do mnist. Deve ser utilizado no conjunto de treino do MNIST integrado ao pytorch
+
+"mnist_val_idx"  - contém os índices das amostras de validação do mnist. Deve ser utilizado no conjunto de treino do MNIST integrado ao pytorch
+
+"omniglot_test_idx" - contém os índices das amostras de teste do omniglot. Deve ser utilizado no conjunto de background = True do Omniglot integrado ao pytorch.
+
+"omniglot_val_idx" - contém os índices das amostras de teste do omniglot. Deve ser utilizado no conjunto de background = False do Omniglot integrado ao pytorch.
+
+--------------------COMO USAR -------------------------------
+
+splits = torch.load("mnist_omni_splits.pt")
+
+mnist_train = MNIST(root="./data/", download=True, transform=transform, train=True)
+mnist_test = MNIST(root="./data/", download=True, transform=transform, train=False)
+
+test_omniglot = Omniglot(
+    root="./data/",
+    download=True,
+    transform=transform,
+    target_transform=ToUnknown()
+)
+
+val_omniglot = Omniglot(
+    root="./data/",
+    download=True,
+    transform=transform,
+    target_transform=ToUnknown(),
+    background=False
+)
+
+train_dataset = Subset(mnist_train, splits["mnist_train_idx"])
+mnist_val_dataset = Subset(mnist_train, splits["mnist_val_idx"])
+
+test_omniglot_reduzido = Subset(test_omniglot, splits["omniglot_test_idx"])
+val_omniglot_reduzido = Subset(val_omniglot, splits["omniglot_val_idx"])
+
+grid_search_val_dataset = ConcatDataset([mnist_val_dataset, val_omniglot_reduzido])
+test_dataset = ConcatDataset([test_omniglot_reduzido, mnist_test])

@@ -1,0 +1,35 @@
+# Core ML framework
+torch>=2.5.0
+torchvision>=0.20.0
+torchaudio>=2.5.0
+
+# Evaluation metrics
+torchmetrics>=1.0.0
+
+# Experiment tracking
+wandb>=0.18.0
+
+# Data science & numerical
+numpy>=1.26.0
+scikit-learn>=1.5.0
+pandas>=2.2.0
+scipy>=1.14.0
+
+# Visualization
+matplotlib>=3.9.0
+
+# Progress bars
+tqdm>=4.66.0
+
+# Image loading & augmentation (BDD100k pipeline)
+opencv-python>=4.10.0
+albumentations>=1.4.0
+pycocotools>=2.0.8
+
+# WRN utilities
+nested-dict>=1.61
+torchfile>=0.1.0
+
+# WRN training engine (optional — only needed for wrn28-10.py)
+# Install manually on Python 3.13: pip install torchnet --no-deps
+# torchnet

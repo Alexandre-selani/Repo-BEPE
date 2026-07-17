@@ -1,0 +1,16 @@
+# Processamento de Dados e Matemática
+numpy
+pandas
+scipy
+
+# Visão Computacional e Imagem
+scikit-image
+Pillow
+matplotlib
+
+# Machine Learning e Deep Learning (PyTorch)
+torch
+torchvision
+
+# Bibliotecas Específicas
+libmr

@@ -1,0 +1,10 @@
+Features_extraidas
+data
+__pycache__
+venv
+exp
+nohup.out
+*.GNet
+*.DNet
+*.png
+*.csv

@@ -1,0 +1,74 @@
+# ============================================
+# PYTHON
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# ============================================
+# JUPYTER NOTEBOOK CHECKPOINTS
+# ============================================
+.ipynb_checkpoints/
+
+# ============================================
+# LOGS, DUMPS, OUTPUTS
+# ============================================
+nohup.out
+*.log
+
+
+# ============================================
+# NEURAL NETWORK WEIGHTS
+# ============================================
+# Ignora TODOS os .pt por padrao (pesos, checkpoints, etc.)
+*.pt
+# Ignora .pth (pesos do cac-openset-Dimity e afins)
+*.pth
+
+# Mas REINCLUI data splits e features extraidas (nao sao pesos)
+!*splits.pt
+
+
+# ============================================
+# IMAGENS
+# ============================================
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.tif
+*.webp
+*.zip
+
+# ============================================
+# AMBIENTES VIRTUAIS / DEPENDENCIAS
+# ============================================
+# Segmentacao tem um venv completo
+Segmentacao/segmentacao/
+BRACIS/
+
+# ============================================
+# VS CODE
+# ============================================
+.vscode/
+*.code-workspace
+
+# ============================================
+# SISTEMA
+# ============================================
+.DS_Store
+Thumbs.db
+
+*/.git
+!./.git
+
+*.gz
+*-ubyte

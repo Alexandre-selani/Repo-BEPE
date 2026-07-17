@@ -1,0 +1,2 @@
+tail,f1_macro,accuracy,uuc_accuracy,inner_metric,outer_metric,halfpoint,auroc
+500,0.907,0.900,0.918,0.999,0.901,0.883,0.973

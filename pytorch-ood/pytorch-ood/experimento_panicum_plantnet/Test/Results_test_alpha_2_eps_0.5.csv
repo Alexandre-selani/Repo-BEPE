@@ -1,0 +1,2 @@
+alpha,epsilon,tail,f1_macro_mean,f1_macro_std,acc_mean,acc_std,inner_mean,inner std,outer_mean,outer_std,halfpoint_mean,halfpoint_std,auroc_mean,auroc_std
+2,0.500,10,0.917,0.030,0.912,0.033,1.000,0.000,0.912,0.033,0.887,0.055,0.891,0.038

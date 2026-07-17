@@ -1,0 +1,79 @@
+from .Feature_extraction_abs import Feature_extraction_abs
+from Modelos import ResNet18_cac
+from torchvision.models import resnet18
+import torch.nn as nn
+import torch
+device = 'cuda:0'
+
+class ResNet18_feature_extraction(Feature_extraction_abs):
+    def __init__(self, num_classes):
+        super().__init__(num_classes)
+        self.model = resnet18()
+        self.adjust_output()
+    
+    def adjust_output(self):
+        self.model.to(device=device)
+        self.model.fc = nn.Linear(self.model.fc.in_features, self.num_classes).to(device=device)
+        
+    def forward(self, x):
+        return self.model(x)
+    
+    def classify_features(self, x):
+        return self.model.fc(x)
+    
+    def extract_features(self, x):
+        with torch.no_grad():
+            x = self.model.conv1(x)
+            x = self.model.bn1(x)
+            x = self.model.relu(x)
+            x = self.model.maxpool(x)
+
+            x = self.model.layer1(x)
+            x = self.model.layer2(x)
+            x = self.model.layer3(x)
+            x = self.model.layer4(x)
+
+            x = self.model.avgpool(x)
+            x = torch.flatten(x, 1)
+
+        return x
+    
+    def load_model(self, weights):
+        self.model.load_state_dict(weights)
+
+class ResNet18_cac_feature_extraction(Feature_extraction_abs):
+    def __init__(self, num_classes):
+        super().__init__(num_classes)
+        self.model = ResNet18_cac(num_classes)
+        self.model.skip_distance = True
+        self.adjust_output()
+    
+    def adjust_output(self):
+        self.model.to(device=device)
+        
+        
+    def forward(self, x):
+        return self.model(x)
+    
+    def classify_features(self, x):
+        return self.model.classify(x)
+    
+    def extract_features(self, x):
+        with torch.no_grad():
+            x = self.model.encoder(x)
+
+        return x
+    
+    def load_model(self, weights):
+        self.model.load_state_dict(weights)
+
+def main():
+    extractor = ResNet18_feature_extraction(num_classes=10)
+    input_fake = torch.randn(64, 3, 64, 64).to(device=device)
+    features = extractor.extract_features(input_fake)
+
+    print(f"Dimensão das features da AlexNet: {features.shape}") 
+    # Resultado esperado: torch.Size([1, 4096])
+
+if __name__  == "__main__":
+    main()

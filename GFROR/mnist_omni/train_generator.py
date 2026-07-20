@@ -64,19 +64,19 @@ def vis(model, dataloader, filename, config, device):
 def main():
 
     config = {
-        "batch_size": 128,
-        "learning_rate":1e-3,
+        "batch_size": 256,
+        "learning_rate":1e-4,
         "betas":(0.5, 0.999),
-        "epochs": 250,
+        "epochs": 150,
         "split": 3,
         "ckpt_period":25,
         "type":"train mnist ae",
         "vis_only":True,
     }
 
-    train_transform = T.Compose([T.Resize(32),T.RandomHorizontalFlip(),T.Grayscale(num_output_channels=3), T.ToTensor(), #T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
+    train_transform = T.Compose([T.Resize(28),T.RandomHorizontalFlip(),T.Grayscale(num_output_channels=3), T.ToTensor(), #T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
     ])
-    val_transform = T.Compose([T.Resize(32),T.Grayscale(num_output_channels=3),T.ToTensor(), #T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
+    val_transform = T.Compose([T.Resize(28),T.Grayscale(num_output_channels=3),T.ToTensor(), #T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
     ])
     data_manager_train = Mnist_omni_loader(config["batch_size"],train_transform)
     data_manager_val = Mnist_omni_loader(config["batch_size"], val_transform)
@@ -90,8 +90,8 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), lr=config["learning_rate"], betas=config["betas"], weight_decay=1e-4)
     scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.8, patience=10, threshold_mode='abs')
 
-    ckpt_path = os.path.join("../ckpt/ae_mnist_omni", "Mnist_omni")
-    out_path = os.path.join("../output/ae_mnist_omni", "Mnist_omni")
+    ckpt_path = os.path.join("./ckpt/ae_mnist_omni", "Mnist_omni")
+    out_path = os.path.join("./output/ae_mnist_omni", "Mnist_omni")
 
 
     if not os.path.exists(out_path):

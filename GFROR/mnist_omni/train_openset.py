@@ -11,7 +11,7 @@ from tqdm import tqdm
 import numpy as np
 import pandas
 import random
-import wandb
+
 from collections import Counter
 from torchvision.utils import make_grid, save_image
 from torch.optim.lr_scheduler import StepLR, ReduceLROnPlateau
@@ -22,7 +22,7 @@ from model.vanilla_ae import VanillaAE
 from model.classifier import Classifier
 from model.wgan import WGAN_GP
 from model.utils import to_img, to_4d
-from data.dataset_maker import split_dataset, KNOWN_SPLITS, KNOWN_SPLIT_NAMES, CIFAR_CLASSES
+
 
 torch.manual_seed(0)
 torch.cuda.manual_seed(0)
@@ -63,64 +63,12 @@ def train(G, C, dataloader, optimizer, loss_fn, transformations, device):
 
     return ce_losses, ss_losses, train_losses
 
-# validate on known classes, find threshold value where min TP is 0.90
-def find_threshold_at_tp_level(G, C, val_loader, ce_loss, KNOWN_CLASSES, CIFAR_CLASSES, device, min_tp=0.90):
-    G.eval()
-    C.eval()
-
-    preds, targets = [], []
-
-    # collect preds and GT for the validation set
-    with torch.no_grad():
-        for x, y in tqdm(val_loader):
-            x, y = x.to(device), y.to(device)
-            x_hat = G(x)
-            concat_x = torch.cat((x, x_hat), dim=1)
-            out = C(concat_x)[0]
-            #out = F.softmax(out, dim=-1)
-            preds.append(out)
-            targets.append(y)
-
-    preds = torch.cat(preds, dim=0)
-    targets = torch.cat(targets, dim=0)
-
-    val_ce = ce_loss(preds, targets)
-
-    pred_max, pred_idx = torch.max(preds, 1)
-    val_acc = (pred_idx==targets).sum().item() / len(targets)
-
-    wandb.log({"val - PR" : wandb.plot.pr_curve(targets.cpu(), preds.cpu(), labels=CIFAR_CLASSES), "val - ROC": wandb.plot.roc_curve(targets.cpu(), preds.cpu(), labels=CIFAR_CLASSES)})
-
-
-    # calculate FPR and TPR rates
-    fpr, tpr, thr, roc_auc = dict(), dict(), dict(), dict()
-    for i, cl in enumerate(KNOWN_CLASSES):
-        fpr[i], tpr[i], thr[i] = roc_curve((targets==i).cpu(), preds[:,i].cpu())
-        roc_auc[i] = auc(fpr[i], tpr[i])
-    
-    thresholds = []
-    for i, cl in enumerate(KNOWN_CLASSES):
-        # print("tpr",tpr[i])
-        # print("thr",thr[i])
-        thr_idx = np.argmax(tpr[i]>=min_tp)
-        thresholds.append(thr[i][thr_idx])
-        # print("thr idx",thr[i][thr_idx])
-
-    #print(thresholds)
-
-    return val_ce, val_acc, np.max(thresholds)
-
-
 # evaluate on full dataset that consists of both known and unknown classes
 def evaluate(G, C, dataloader, threshold, KNOWN_CLASSES, UNK_INDEX, device, vis=False):
     C.eval()
     acc = 0.0
     acc2 = 0.0
     auroc_preds, auroc_preds_2d, auroc_targets = [], [], []
-
-    test_data_at = wandb.Artifact("evaluate" + str(wandb.run.id), type="predictions")
-    columns = ["image","gt_class","unk_y","bin_y","max_act","threshold","prob_known","prob_unk"]
-    test_table = wandb.Table(columns=columns)
 
     with torch.no_grad():
         for x, y in tqdm(dataloader):
@@ -149,30 +97,12 @@ def evaluate(G, C, dataloader, threshold, KNOWN_CLASSES, UNK_INDEX, device, vis=
             auroc_preds.append(prob_unknown)
             auroc_preds_2d.append(torch.stack([prob_known, prob_unknown], dim=1))
             auroc_targets.append(bin_y)
-            
-            test_table.add_data(
-                wandb.Image(to_img(x[0:1].cpu().data)[0]), 
-                y[0].cpu().data, 
-                unk_y[0].cpu().data,
-                bin_y[0].cpu().data,
-                max_act[0].cpu().data,
-                threshold,
-                prob_known[0].cpu().data,
-                prob_unknown[0].cpu().data,
-                )    
-
 
     # print("binary accuracy", acc2 / len(dataloader.dataset))
 
     auroc_preds = torch.cat(auroc_preds, dim=0)
     auroc_preds_2d = torch.cat(auroc_preds_2d, dim=0)
     auroc_targets = torch.cat(auroc_targets, dim=0)
-
-    wandb.log({"open set - PR" : wandb.plot.pr_curve(auroc_targets.cpu(), auroc_preds_2d.cpu(), labels=["known","unknown"]), 
-                "open set - ROC": wandb.plot.roc_curve(auroc_targets.cpu(), auroc_preds_2d.cpu(), labels=["known","unknown"]),
-            })
-    test_data_at.add(test_table, "predictions")
-    wandb.run.log_artifact(test_data_at)      
 
     mean_acc = acc / len(dataloader.dataset)
     auroc = AUROC(task="binary")(auroc_preds, auroc_targets)
@@ -195,15 +125,11 @@ def main():
         "type": "train open-set-classifier"
     }
 
-    wandb.init(project="547_term", config=configs)
-    config = wandb.config
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     ckpt_path = os.path.join("ckpt/openset_ae_cnn", "cifar_split" + str(config.split))
     out_path = os.path.join("output/openset_ae_cnn", "cifar_split" + str(config.split))
-    config.out_path = out_path
-    config.ckpt_path = ckpt_path
+    
 
     if not os.path.exists(out_path):
         os.makedirs(out_path)

@@ -48,4 +48,73 @@ class LeNet_cac(BaseCACClassifier):
         encoder.fc3 = nn.Identity()
         return encoder
 
-    
+class LeNet_GFROR():
+    def __init__(self, num_classes=10):
+        super().__init__()
+        # C1
+        self.conv1 = nn.Conv2d(1, 6, kernel_size=5)      # 28x28 -> 24x24
+        # C3
+        self.conv2 = nn.Conv2d(6, 16, kernel_size=5)     # 12x12 -> 8x8
+
+        # F6
+        self.fc1 = nn.Linear(16 * 4 * 4, 120)
+        
+        self.classification = nn.Sequential(
+            nn.Linear(120, 84),
+            nn.ReLU(),
+            nn.Linear(84, num_classes)
+        )
+
+        self.transformation = nn.Sequential(
+            nn.Linear(120, 84),
+            nn.ReLU(),
+            nn.Linear(84, num_classes)
+        )
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.avg_pool2d(x, 2)                           # 24x24 -> 12x12
+        x = F.relu(self.conv2(x))
+        x = F.avg_pool2d(x, 2)                           # 8x8 -> 4x4
+        x = torch.flatten(x, 1)
+        out = F.relu(self.fc1(x))
+
+
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+
+class LeNetFeaturizer(nn.Module):
+    """Wrapper que retorna (logits, features) no forward, similar ao ResNetFeaturizer.
+
+    Usa os mesmos nomes de camadas do LeNet5 para compatibilidade de state_dict.
+    """
+
+    def __init__(self, num_classes=10):
+        super().__init__()
+        # C1
+        self.conv1 = nn.Conv2d(1, 6, kernel_size=5)      # 28x28 -> 24x24
+        # C3
+        self.conv2 = nn.Conv2d(6, 16, kernel_size=5)     # 12x12 -> 8x8
+
+        # F6
+        self.fc1 = nn.Linear(16 * 4 * 4, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, num_classes)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.avg_pool2d(x, 2)                           # 24x24 -> 12x12
+        x = F.relu(self.conv2(x))
+        x = F.avg_pool2d(x, 2)                           # 8x8 -> 4x4
+        x = torch.flatten(x, 1)
+        x = F.relu(self.fc1(x))
+        feats = F.relu(self.fc2(x))
+        logits = self.fc3(feats)
+        return logits, feats
+
+    def getPerClassWeights(self):
+        """Obtém os pesos da última camada (classificador fc3)."""
+        with torch.no_grad():
+            return self.fc3.weight.detach()

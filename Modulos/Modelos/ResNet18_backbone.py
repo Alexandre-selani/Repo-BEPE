@@ -1,10 +1,11 @@
 
-from torchvision.models import resnet18,ResNet18_Weights
+import torch
 import torch.nn as nn
+from torchvision.models import resnet18, ResNet18_Weights
 from .Base_CAC import BaseCACClassifier
 
 
-def ResNet18(num_classes,weights=None):
+def ResNet18(num_classes, weights=None):
     
     model=None 
 
@@ -27,7 +28,6 @@ def ResNet18(num_classes,weights=None):
 	Dimity Miller, 2020
 """
 
-import torch
 
 class ResNet18_cac(BaseCACClassifier):
     def __init__(self, num_classes=20, weights=None, skip_distances=False, init_weights=False, **kwargs):
@@ -47,3 +47,50 @@ class ResNet18_cac(BaseCACClassifier):
         # Remove a última camada linear transformando-a em Identidade
         encoder.fc = nn.Identity()
         return encoder
+
+
+class ResNet18Featurizer(nn.Module):
+    """Wrapper que retorna (logits, features) no forward, similar ao LeNetFeaturizer.
+
+    Usa os mesmos nomes de camadas do ResNet18 original (conv1, bn1, layer1, etc.)
+    para compatibilidade total de state_dict com modelos treinados via funcao ResNet18().
+    """
+
+    def __init__(self, num_classes=10, weights=None):
+        super().__init__()
+        backbone = resnet18(weights=weights)
+
+        # Blocos de features com os MESMOS nomes do ResNet18 original
+        self.conv1 = backbone.conv1
+        self.bn1 = backbone.bn1
+        self.relu = backbone.relu
+        self.maxpool = backbone.maxpool
+        self.layer1 = backbone.layer1
+        self.layer2 = backbone.layer2
+        self.layer3 = backbone.layer3
+        self.layer4 = backbone.layer4
+        self.avgpool = backbone.avgpool
+
+        # Classificador linear (substitui o fc original)
+        self.fc = nn.Linear(512, num_classes)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+
+        x = self.avgpool(x)                          # (batch, 512, 1, 1)
+        feats = torch.flatten(x, 1)                  # (batch, 512)
+        logits = self.fc(feats)                      # (batch, num_classes)
+        return logits, feats
+
+    def getPerClassWeights(self):
+        """Obtém os pesos da última camada (classificador fc)."""
+        with torch.no_grad():
+            return self.fc.weight.detach()

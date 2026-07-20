@@ -18,7 +18,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE=128
 MODEL = "LeNet"
 result_dir = f"/home/alexandreselani/Desktop/COSTARR/results/mnist_omni/{MODEL}"
-calcs_dir = f"/home/alexandreselani/Desktop/COSTARR/calcs/{MODEL}/"
+calcs_dir = f"/home/alexandreselani/Desktop/COSTARR/calcs/mnist_omni/{MODEL}/"
 os.makedirs(result_dir,exist_ok=True)
 os.makedirs(calcs_dir,exist_ok=True)  
 

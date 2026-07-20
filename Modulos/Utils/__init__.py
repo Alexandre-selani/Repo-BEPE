@@ -6,3 +6,4 @@ from .Nomes import *
 from .PCA_plot import *
 from .LinewithSTD import *
 from .Utils import CACLoss
+from .matriz_confusao_osr_dataset_outlier_cumulativa import *

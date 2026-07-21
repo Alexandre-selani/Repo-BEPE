@@ -1,6 +1,7 @@
 
 from torchvision.models import alexnet
 import torch.nn as nn
+import torch
 from .Base_CAC import BaseCACClassifier
 
 def Alexnet(num_classes,weights=None):
@@ -31,3 +32,42 @@ class AlexNet_cac(BaseCACClassifier):
         # Remove a última camada linear transformando-a em Identidade
         encoder.classifier[6] = nn.Identity()
         return encoder
+
+
+class AlexNetFeaturizer(nn.Module):
+    """Wrapper que retorna (logits, features) no forward, similar ao ResNet18Featurizer.
+
+    Usa os mesmos nomes de camadas do AlexNet original (features, avgpool, classifier)
+    para compatibilidade total de state_dict com modelos treinados via funcao Alexnet().
+    """
+
+    def __init__(self, num_classes=10):
+        super().__init__()
+        backbone = alexnet()
+
+        # Blocos de features com os MESMOS nomes do AlexNet original
+        self.features = backbone.features
+        self.avgpool = backbone.avgpool
+
+        # Classificador completo com a ultima camada substituida
+        self.classifier = backbone.classifier
+        self.classifier[6] = nn.Linear(4096, num_classes)
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+
+        # Percorre classifier[0..5] para extrair features 4096-d
+        for i in range(6):
+            x = self.classifier[i](x)
+        feats = x
+
+        # classifier[6] = camada de classificacao final
+        logits = self.classifier[6](feats)
+        return logits, feats
+
+    def getPerClassWeights(self):
+        """Obtém os pesos da última camada (classifier[6])."""
+        with torch.no_grad():
+            return self.classifier[6].weight.detach()

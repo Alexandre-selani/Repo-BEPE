@@ -44,7 +44,7 @@ def val(epsilons):
     results_by_epsilon = {}
     
     scores, max_logits,max_logits_idx, labels = costarrPredict(model,val_loader,costarr_calcs)
-    print(scorePorClasse(scores,labels))
+   
     for epsilon in epsilons:
         predicts = thresholdPredicitions(scores,max_logits_idx,epsilon)
 
@@ -76,7 +76,7 @@ def test(epsilons):
     results_by_epsilon = {}
     
     scores, max_logits,max_logits_idx, labels = costarrPredict(model,val_loader,costarr_calcs)
-    print(scorePorClasse(scores,labels))
+
     for epsilon in epsilons:
         predicts = thresholdPredicitions(scores,max_logits_idx,epsilon)
 
@@ -104,7 +104,7 @@ def test(epsilons):
     df.to_csv(os.path.join(result_dir,"Resultados_test.csv"),index=False,float_format="%.3f")
 
 thresholds = np.arange(0,1,0.01)
-train()
+#train()
 
 if not costarr_calcs:
     costarr_calcs = torch.load(final_calcs_dir,weights_only=False)

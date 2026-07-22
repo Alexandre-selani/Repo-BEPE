@@ -19,11 +19,11 @@ from sklearn.metrics import roc_curve, roc_auc_score, auc
 from torchmetrics import AUROC
 
 from model.vanilla_ae import VanillaAE
-from model.classifier import Classifier
 from model.wgan import WGAN_GP
 from model.utils import to_img, to_4d
-
-
+from model.classifier import Classifier
+from Modelos import LeNet_GFROR
+from Datasets import Mnist_omni_loader
 torch.manual_seed(0)
 torch.cuda.manual_seed(0)
 np.random.seed(0)
@@ -32,14 +32,16 @@ random.seed(0)
 
 # train on known classes, both classification and self supervision
 def train(G, C, dataloader, optimizer, loss_fn, transformations, device):
-    G.train()
+    #G.train()
     C.train()
+    G.eval()
 
     ce_losses, ss_losses, train_losses = [], [], []
 
     for x, y in tqdm(dataloader):
         x, y = x.to(device), y.to(device)
-        x_hat = G(x)
+        with torch.no_grad():
+            x_hat = G(x)
         concat_x = torch.cat((x, x_hat), dim=1)
         ce_loss = loss_fn(C(concat_x)[0], y)
 
@@ -63,9 +65,41 @@ def train(G, C, dataloader, optimizer, loss_fn, transformations, device):
 
     return ce_losses, ss_losses, train_losses
 
+def evaluate_closedSet(G, C, dataloader, optimizer, loss_fn, transformations, device):
+    C.eval()
+    G.eval()
+    
+    ce_losses, ss_losses, train_losses = [], [], []
+    
+    with torch.no_grad():
+        for x, y in tqdm(dataloader):
+            x, y = x.to(device), y.to(device)
+            
+            x_hat = G(x)
+            concat_x = torch.cat((x, x_hat), dim=1)
+            ce_loss = loss_fn(C(concat_x)[0], y)
+    
+            # note: how to get rid of for loop
+            trans_ind = torch.randint(len(transformations), (x.size(0),))
+            rand_trans = transformations[trans_ind]
+            t_x = torch.stack([t(x[i]) for i,t in enumerate(rand_trans)], dim=0)
+            t_x_hat = torch.stack([t(x_hat[i]) for i,t in enumerate(rand_trans)], dim=0)
+    
+            concat_t = torch.cat((t_x, t_x_hat), dim=1)
+            ss_loss = loss_fn(C(concat_t)[1], trans_ind.to(device))
+    
+            loss = 0.8 * ce_loss + 0.2 * ss_loss
+    
+            ce_losses.append(ce_loss.item())
+            ss_losses.append(ss_loss.item())
+            train_losses.append(loss.item())
+
+    return ce_losses, ss_losses, train_losses
+
 # evaluate on full dataset that consists of both known and unknown classes
 def evaluate(G, C, dataloader, threshold, KNOWN_CLASSES, UNK_INDEX, device, vis=False):
     C.eval()
+    G.eval()
     acc = 0.0
     acc2 = 0.0
     auroc_preds, auroc_preds_2d, auroc_targets = [], [], []
@@ -93,42 +127,30 @@ def evaluate(G, C, dataloader, threshold, KNOWN_CLASSES, UNK_INDEX, device, vis=
             z = torch.exp(out).sum(dim=1)
             prob_known = z / (z + 1)
             prob_unknown = 1 - prob_known
-            bin_y = torch.where(torch.isin(y, torch.Tensor(KNOWN_CLASSES).to(device)), 0, 1) # unk -> 1, known -> 0
-            auroc_preds.append(prob_unknown)
-            auroc_preds_2d.append(torch.stack([prob_known, prob_unknown], dim=1))
-            auroc_targets.append(bin_y)
-
-    # print("binary accuracy", acc2 / len(dataloader.dataset))
-
-    auroc_preds = torch.cat(auroc_preds, dim=0)
-    auroc_preds_2d = torch.cat(auroc_preds_2d, dim=0)
-    auroc_targets = torch.cat(auroc_targets, dim=0)
-
-    mean_acc = acc / len(dataloader.dataset)
-    auroc = AUROC(task="binary")(auroc_preds, auroc_targets)
-    return  mean_acc, auroc.item()
+            
+    return  
 
 
 
 def main():
 
     configs = {
-        "batch_size": 64,
-        "learning_rate":1e-3,
+        "batch_size": 256,
+        "lr":1e-4,
         "betas":(0.5, 0.999),
-        "epochs": 150,
+        "epochs": 10,
         "split": 3,
         "unk_index": 11,
         "ckpt_period":25,
         "generator":"vanilla_ae",
-        "classifier":"vanilla_cnn",
+        "classifier":"LeNet",
         "type": "train open-set-classifier"
     }
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    ckpt_path = os.path.join("ckpt/openset_ae_cnn", "cifar_split" + str(config.split))
-    out_path = os.path.join("output/openset_ae_cnn", "cifar_split" + str(config.split))
+    ckpt_path = os.path.join("ckpt/openset_ae_mnist_omni", "Mnist_omni")
+    out_path = os.path.join("output/openset_ae_mnist_omni", "Mnist_omni")
     
 
     if not os.path.exists(out_path):
@@ -136,32 +158,18 @@ def main():
     if not os.path.exists(ckpt_path):
         os.makedirs(ckpt_path)
 
-    # Prepare splitted dataset and loaders
-    train_transform = T.Compose([T.ToPILImage(), T.RandomCrop(32, padding=4), T.ToTensor(), #T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
-    ])
-    test_transform = T.Compose([T.ToTensor(), #T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
+ 
+    test_transform = T.Compose([T.Resize(32),T.Grayscale(num_output_channels=3),T.ToTensor(), #T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
     ])
     
-    train_set = torchvision.datasets.CIFAR10(root='./dataset', train=True, download=False)
-    split_train_set = split_dataset(train_set, config.split, train_transform) # extract known class samples
+    data_man = Mnist_omni_loader(bs=configs["batch_size"],transform=test_transform)
+    train_loader = data_man.load_train()
+    val_loader = data_man.load_mnist_val()
 
-    # small val set needed to decide threshold
-    train_size, val_size = int(np.floor(len(split_train_set) * 0.9)), int(np.floor(len(split_train_set) * 0.1))
-    indices = list(range(len(split_train_set)))
-    np.random.shuffle(indices)
-    train_idx, val_idx = indices[val_size:], indices[:val_size]
-    train_sampler, val_sampler = SubsetRandomSampler(train_idx), SubsetRandomSampler(val_idx)
-
-    test_set = torchvision.datasets.CIFAR10(root='./dataset', train=False, download=False, transform=test_transform)
-
-    train_loader = DataLoader(split_train_set, batch_size=config.batch_size, shuffle=False, num_workers=8, sampler=train_sampler, drop_last=True)
-    val_loader = DataLoader(split_train_set, batch_size=config.batch_size, shuffle=False, num_workers=8, sampler=val_sampler, drop_last=True)
-    test_loader = DataLoader(test_set, batch_size=config.batch_size, shuffle=False, num_workers=8)
-
-    generator = torch.load("ckpt/vanilla_ae_nonorm/cifar_split"+str(config.split)+"/ckpt250.pth",weights_only=False).to(device)
-    classifier = Classifier(num_classes=6,num_transformations=8).to(device)
+    generator = torch.load("ckpt/ae_mnist_omni/Mnist_omni/ckpt.pth",weights_only=False).to(device)
+    classifier = LeNet_GFROR(num_classes=10,num_transforms=8).to(device)
     ce_loss = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(classifier.parameters(), lr=config.learning_rate, betas=config.betas, weight_decay=1e-4)
+    optimizer = torch.optim.Adam(classifier.parameters(), lr=configs["lr"], betas=configs["betas"], weight_decay=1e-4)
     scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.8, patience=10, threshold_mode='abs')
 
     # freeze generator
@@ -181,25 +189,17 @@ def main():
     ])
 
 
-    for i in range(config.epochs):
+    for i in range(configs["epochs"]):
         train_ce_loss, train_ss_loss, train_loss = train(generator, classifier, train_loader, optimizer, ce_loss, transformations, device)
-        val_ce, val_acc, threshold = find_threshold_at_tp_level(generator, classifier, val_loader, ce_loss, KNOWN_SPLITS[config.split], CIFAR_CLASSES, device)
-        test_acc, test_auroc = evaluate(generator, classifier, test_loader, threshold, KNOWN_SPLITS[config.split], config.unk_index, device)
-        scheduler.step(val_ce)
+        val_ce_loss,val_ss_loss,val_loss = evaluate_closedSet(generator, classifier, val_loader, optimizer, ce_loss, transformations, device)
+        # test_acc, test_auroc = evaluate(generator, classifier, test_loader, threshold, KNOWN_SPLITS[config.split], config.unk_index, device)
+        #scheduler.step(val_ce)
 
-        print('epoch [{}/{}], lr:{:.4f}, train loss:{:.4f}, val loss:{:.4f}, closed set (val) acc:{:.4f}, open set (test) acc:{:.4f}, open set (test) auroc:{:.4f}'.format(i+1, config.epochs, optimizer.param_groups[0]['lr'], sum(train_loss)/len(train_loss), val_ce, val_acc, test_acc, test_auroc))
-        wandb.log({"train - ce loss": sum(train_ce_loss)/len(train_ce_loss),
-                    "train - ss loss": sum(train_ss_loss)/len(train_ss_loss),
-                    "train - total loss": sum(train_loss)/len(train_loss),
-                    "lr": optimizer.param_groups[0]['lr'], 
-                    "val - ce loss": val_ce, 
-                    "val - closed set accuracy": val_acc, 
-                    "test - open set accuracy": test_acc,
-                    "test - auroc": test_auroc,
-                    })
-        if (i + 1) % config.ckpt_period == 0:
-            save_path = os.path.join(config.ckpt_path, "ckpt"+str(i+1)+".pth")
-            torch.save(classifier, save_path)
+        print('epoch [{}/{}], lr:{:.4f}, train loss:{:.4f}, val_loss: {:.4f}'.format(i+1, configs["epochs"], optimizer.param_groups[0]['lr'], sum(train_loss)/len(train_loss), sum(val_loss)/len(val_loss)))
+        
+        
+    save_path = os.path.join(ckpt_path, "LeNet.pth")
+    torch.save(classifier, save_path)
 
 if __name__ == "__main__":
     main()

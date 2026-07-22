@@ -67,16 +67,16 @@ def main():
         "batch_size": 256,
         "learning_rate":1e-4,
         "betas":(0.5, 0.999),
-        "epochs": 150,
+        "epochs": 20,
         "split": 3,
         "ckpt_period":25,
         "type":"train mnist ae",
         "vis_only":True,
     }
 
-    train_transform = T.Compose([T.Resize(28),T.RandomHorizontalFlip(),T.Grayscale(num_output_channels=3), T.ToTensor(), #T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
+    train_transform = T.Compose([T.Resize(32),T.RandomHorizontalFlip(),T.Grayscale(num_output_channels=3), T.ToTensor(), #T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
     ])
-    val_transform = T.Compose([T.Resize(28),T.Grayscale(num_output_channels=3),T.ToTensor(), #T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
+    val_transform = T.Compose([T.Resize(32),T.Grayscale(num_output_channels=3),T.ToTensor(), #T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
     ])
     data_manager_train = Mnist_omni_loader(config["batch_size"],train_transform)
     data_manager_val = Mnist_omni_loader(config["batch_size"], val_transform)
@@ -119,8 +119,8 @@ def main():
         merged = torch.stack((org,recons),dim=1).view(-1,3,32,32)
         save_image(merged, os.path.join(out_path, "vanilla_recons_epoch{}.png".format(i+1)))
 
-        if (i+1) % config["ckpt_period"] == 0:
-            torch.save(model, os.path.join(ckpt_path, "ckpt"+str(i+1)+".pth"))
+        
+        torch.save(model, os.path.join(ckpt_path, "ckpt.pth"))
 
 
 if __name__ == "__main__":

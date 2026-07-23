@@ -94,7 +94,7 @@ class Encoder320(nn.Module):
         super().__init__()
         self.features = nn.Sequential(
             # 320x320 -> 160x160
-            nn.Dropout2d(0.1),
+            nn.Dropout2d(0.25),
             nn.Conv2d(3, 64, 3, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(64),
             nn.LeakyReLU(0.2),

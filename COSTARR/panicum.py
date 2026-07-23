@@ -254,6 +254,7 @@ def test(epsilons):
     df.to_csv(os.path.join(result_dir,"Resultados_test.csv"),index=False,float_format="%.3f")
 
 thresholds = np.arange(0,1,0.01)
-test(thresholds)
+#train()
+val(thresholds)
 
 

@@ -94,3 +94,51 @@ class ResNet18Featurizer(nn.Module):
         """Obtém os pesos da última camada (classificador fc)."""
         with torch.no_grad():
             return self.fc.weight.detach()
+
+
+class ResNet18_GFROR(nn.Module):
+    """ResNet18 adaptado para o GFROR: 6 canais de entrada (x + x_hat) e imagens 32x32.
+
+    Saidas:
+        classification_out: (batch, num_classes)
+        transformation_out: (batch, num_transforms)
+    """
+
+    def __init__(self, num_classes=10, num_transforms=10):
+        super().__init__()
+        backbone = resnet18(weights=None)
+
+        # Conv1 — 6 canais de entrada (concatenação x + x_hat), 32x32
+        self.conv1 = nn.Conv2d(6, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1 = backbone.bn1
+        self.relu = backbone.relu
+        self.maxpool = backbone.maxpool
+
+        self.layer1 = backbone.layer1
+        self.layer2 = backbone.layer2
+        self.layer3 = backbone.layer3
+        self.layer4 = backbone.layer4
+        self.avgpool = backbone.avgpool                   # adaptive_avg_pool2d(1)
+
+
+        self.classification = nn.Linear(512, num_classes)
+        self.transformation = nn.Linear(512, num_transforms)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+
+        x = self.avgpool(x)                               # (batch, 512, 1, 1)
+        x = torch.flatten(x, 1)                           # (batch, 512)
+
+
+        classification_out = self.classification(x)
+        transformation_out = self.transformation(x)
+        return classification_out, transformation_out

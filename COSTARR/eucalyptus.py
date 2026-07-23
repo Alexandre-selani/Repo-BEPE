@@ -243,7 +243,7 @@ def test(epsilons):
     
 
 thresholds = np.arange(0,1,0.01)
-train()
+#train()
 val(thresholds)
 test(thresholds)
 

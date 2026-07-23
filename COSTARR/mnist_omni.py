@@ -16,7 +16,7 @@ import os
 # ─── Config ──────────────────────────────────────────────────────────────
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE=128
-MODEL = "LeNet"
+MODEL = "ResNet18"
 result_dir = f"/home/alexandreselani/Desktop/COSTARR/results/mnist_omni/{MODEL}"
 calcs_dir = f"/home/alexandreselani/Desktop/COSTARR/calcs/mnist_omni/{MODEL}/"
 os.makedirs(result_dir,exist_ok=True)
@@ -26,11 +26,11 @@ final_calcs_dir = os.path.join(calcs_dir,"mnist_costarr.pt")
 # model = LeNetFeaturizer().to(DEVICE)
 # 
 
-model = LeNetFeaturizer().to(DEVICE)
+model = ResNet18Featurizer().to(DEVICE)
 model.eval()
 model.load_state_dict(torch.load(f"/home/alexandreselani/Desktop/Experimento_mnist_omni/{MODEL}/{MODEL}_mnist_omni.pt"))
 
-data_manager = Mnist_omni_loader(BATCH_SIZE,NOMES.LENET_MNIST_OMNI_TRANSFORMS.value)
+data_manager = Mnist_omni_loader(BATCH_SIZE,NOMES.RESNET18_MNIST_OMNI_TRANSFORMS.value)
 costarr_calcs=None
 
 def train():

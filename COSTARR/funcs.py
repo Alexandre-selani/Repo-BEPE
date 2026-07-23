@@ -242,12 +242,9 @@ def costarrFit(model,trainloader,save_dir):
     correct_features = all_features[correctly_classified]
     correct_targets = all_targets[correctly_classified]
     
-    # CORREÇÃO: Mapeia apenas os maiores logits das predições corretas
-    max_correct_logits = torch.max(correct_logits, dim=1)[0]
-    
-    # CORREÇÃO: Min e Max baseados estritamente nos max_logits (sem desempacotamento inválido)
-    min_logit = torch.min(max_correct_logits)
-    max_logit = torch.max(max_correct_logits)
+    # CORREÇÃO: Min e Max 
+    min_logit = torch.min(correct_logits)
+    max_logit = torch.max(correct_logits)
     
     hadamard = hadamardProduct(correct_features,model.getPerClassWeights().cpu(),correct_targets)
     concatenatedVectors = concatFeatures(correct_features,hadamard)

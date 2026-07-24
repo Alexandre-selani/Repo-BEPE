@@ -89,12 +89,15 @@ class Encoder(nn.Module):
         
         return clamp_to_unit_sphere(out)
 
+import torch
+import torch.nn as nn
+
 class Encoder320(nn.Module):
     def __init__(self, latent_size=512):
         super().__init__()
         self.features = nn.Sequential(
             # 320x320 -> 160x160
-            nn.Dropout2d(0.25),
+            nn.Dropout2d(0.2),
             nn.Conv2d(3, 64, 3, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(64),
             nn.LeakyReLU(0.2),
@@ -121,3 +124,4 @@ class Encoder320(nn.Module):
         out = out.view(out.shape[0], -1)
         out = self.linear(out)
         return clamp_to_unit_sphere(out)
+

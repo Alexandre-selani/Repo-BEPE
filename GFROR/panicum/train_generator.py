@@ -58,12 +58,35 @@ def vis(model, dataloader, filename, config, device):
     merged = torch.stack((org,recons),dim=1).view(-1,3,32,32)
     save_image(merged, os.path.join(config.out_path, filename))
 
+from torchmetrics.image import StructuralSimilarityIndexMeasure
+
+import torch
+import torch.nn as nn
+from torchvision.models import vgg16, VGG16_Weights
+
+class PerceptualLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # Carrega VGG16 pré-treinada apenas para extrair features
+        vgg = vgg16(weights=VGG16_Weights.DEFAULT).features[:16].eval()
+        for param in vgg.parameters():
+            param.requires_grad = False  # Congela os pesos da VGG
+        self.vgg = vgg
+        self.l1 = nn.L1Loss()
+
+    def forward(self, recon, target):
+        # Extrai features de ambas as imagens e compara
+        recon_features = self.vgg(recon)
+        target_features = self.vgg(target)
+        
+        # Combina Loss Perceptual com uma fração da Loss L1 de pixel
+        return self.l1(recon_features, target_features) + 0.1 * self.l1(recon, target)
 
 def main():
 
     config = {
         "batch_size": 20,
-        "learning_rate":0.0003,
+        "learning_rate":0.0005,
         "betas":(0.5, 0.999),
         "epochs": 100,
         "type":"train panicum ae",
@@ -72,12 +95,11 @@ def main():
 
     train_transform = T.Compose([
     T.Resize((320, 320)),
-    T.RandomHorizontalFlip(),
     # Altere brilho, contraste, SATURAÇÃO e MATRIZ (Hue) agressivamente
     T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.5, hue=0.2),
     # Opcional: Transforme algumas imagens em escala de cinza aleatoriamente
-    T.RandomGrayscale(p=0.2),
     T.ToTensor(),
+    
 ])
     val_transform = T.Compose([T.Resize(320),T.ToTensor(), #T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
     ])
@@ -92,10 +114,11 @@ def main():
         val_loader = data_manager.load_kkc_val(fold,val_transform)
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model = VanillaAE320(50).to(device)
-        loss_fn = nn.L1Loss(reduction="mean")
+        model = VanillaAE320(512).to(device)
+        loss_fn = torch.nn.L1Loss().to(device)
+        #loss_fn = L1SSIMLoss().to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=config["learning_rate"], betas=config["betas"], weight_decay=1e-4)
-        scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.8, patience=10, threshold_mode='abs')
+        scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.8, patience=8, threshold_mode='abs')
 
         ckpt_path = os.path.join("./ckpt/ae_panicum", "panicum")
         out_path = os.path.join("./output/ae_panicum", "panicum")
@@ -117,15 +140,25 @@ def main():
             train_losses.extend(train_loss)
             val_losses.append(val_loss)
 
-            print('epoch [{}/{}], train loss:{:.4f}, val loss:{:.4f}'.format(i+1, config["epochs"], sum(train_loss)/len(train_loss), val_loss))
+            print('epoch [{}/{}], lr ={:.4f} train loss:{:.4f}, val loss:{:.4f}'.format(i+1, config["epochs"], optimizer.param_groups[0]["lr"],sum(train_loss)/len(train_loss), val_loss))
 
-            imgs = next(iter(val_loader))[0][10:20]
-            with torch.no_grad():
-                out = model(imgs.to(device))
-            recons = to_img(out.cpu().data,320)
-            org = to_img(imgs.cpu().data,320)
-            merged = torch.stack((org,recons),dim=1).view(-1,3,320,320)
-            save_image(merged, os.path.join(out_path, "vanilla_recons_epoch{}.png".format(i+1)))
+            if (i+1) % 10 == 0:
+                print(i+1)
+                all_org = []
+                all_recons = []
+                with torch.no_grad():
+                    for batch, _ in val_loader:
+                        batch = batch.to(device)
+                        out = model(batch)
+                        all_org.append(to_img(batch.cpu().data, 320))
+                        all_recons.append(to_img(out.cpu().data, 320))
+                org = torch.cat(all_org, dim=0)
+                recons = torch.cat(all_recons, dim=0)
+                merged = torch.stack((org, recons), dim=1).view(-1, 3, 320, 320)
+                image_path = os.path.join(out_path, f"fold_{fold}")
+                if not os.path.exists(image_path):
+                    os.makedirs(image_path)
+                save_image(merged, os.path.join(image_path, "vanilla_recons_epoch{}.png".format(i+1)))
 
             
         torch.save(model, os.path.join(ckpt_path, f"fold_{fold}.pth"))

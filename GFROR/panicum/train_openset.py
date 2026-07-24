@@ -23,11 +23,8 @@ from model.wgan import WGAN_GP
 from model.utils import to_img, to_4d
 from model.classifier import Classifier
 from Modelos import LeNet_GFROR,ResNet18_GFROR
-from Datasets import Mnist_omni_loader
-torch.manual_seed(0)
-torch.cuda.manual_seed(0)
-np.random.seed(0)
-random.seed(0)
+from Datasets import Panicum_halfsize_loader
+from Utils import fix_random_seed,NOMES
 
 
 # train on known classes, both classification and self supervision
@@ -96,110 +93,105 @@ def evaluate_closedSet(G, C, dataloader, optimizer, loss_fn, transformations, de
 
     return ce_losses, ss_losses, train_losses
 
-# evaluate on full dataset that consists of both known and unknown classes
-def evaluate(G, C, dataloader, threshold, KNOWN_CLASSES, UNK_INDEX, device, vis=False):
-    C.eval()
-    G.eval()
-    acc = 0.0
-    acc2 = 0.0
-    auroc_preds, auroc_preds_2d, auroc_targets = [], [], []
 
-    with torch.no_grad():
-        for x, y in tqdm(dataloader):
-            x, y = x.to(device), y.to(device)
-            x_hat = G(x)
-            concat_x = torch.cat((x, x_hat), dim=1)
-            out = C(concat_x)[0]
-
-            max_act, indices = torch.max(out, dim=-1)
-            
-            labels = torch.where(max_act < threshold, UNK_INDEX, indices)
-            unk_y = torch.where(torch.isin(y, torch.Tensor(KNOWN_CLASSES).to(device)), y, UNK_INDEX)
-            acc += (labels == unk_y).sum().item()
-
-            labels2 = torch.where(max_act < threshold, 1, 0)
-            unk_y2 = torch.where(torch.isin(y, torch.Tensor(KNOWN_CLASSES).to(device)), 0, 1)
-            acc2 += (labels2 == unk_y2).sum().item()
-
-            # The implicit K+1th class (the open set class) is computed
-            # by assuming an extra linear output with constant value 0
-            # https://github.com/lwneal/counterfactual-open-set/blob/34fbc726fb7fe76d15fb323e9597c76292b66d81/generativeopenset/evaluation.py#L217
-            z = torch.exp(out).sum(dim=1)
-            prob_known = z / (z + 1)
-            prob_unknown = 1 - prob_known
-            
-    return  
-
-
-
+import gc
+device = "cuda:0"
 def main():
 
-    configs = {
-        "batch_size": 256,
-        "lr":1e-4,
-        "betas":(0.5, 0.999),
-        "epochs": 10,
-        "split": 3,
-        "unk_index": 11,
-        "ckpt_period":25,
-        "generator":"vanilla_ae",
-        "classifier":"LeNet",
-        "type": "train open-set-classifier"
-    }
+    N_FOLDS=5
+    save_dir = os.path.join("/home/alexandreselani/Desktop/GFROR/ckpt/openset_ae_panicum",NOMES.RESNET18.value)
+    os.makedirs(save_dir,exist_ok=True)
+    gc.collect()
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    lr = 0.00005
+    epochs = 20
+    bs = 20
+    num_classes = 2
 
-    ckpt_path = os.path.join("ckpt/openset_ae_mnist_omni", "Mnist_omni")
-    out_path = os.path.join("output/openset_ae_mnist_omni", "Mnist_omni")
-    
-
-    if not os.path.exists(out_path):
-        os.makedirs(out_path)
-    if not os.path.exists(ckpt_path):
-        os.makedirs(ckpt_path)
-
- 
-    test_transform = T.Compose([T.Resize(32),T.Grayscale(num_output_channels=3),T.ToTensor(), #T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
+    # 1. Definição das Transformações
+    transform_train = T.Compose([
+        T.Resize((320,320)),
+        
+        T.ToTensor(),
+        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-    
-    data_man = Mnist_omni_loader(bs=configs["batch_size"],transform=test_transform)
-    train_loader = data_man.load_train()
-    val_loader = data_man.load_mnist_val()
 
-    generator = torch.load("ckpt/ae_mnist_omni/Mnist_omni/ckpt.pth",weights_only=False).to(device)
-    classifier = LeNet_GFROR(num_classes=10,num_transforms=8).to(device)
-    ce_loss = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(classifier.parameters(), lr=configs["lr"], betas=configs["betas"], weight_decay=1e-4)
-    scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.8, patience=10, threshold_mode='abs')
+    transform_val =T.Compose([
+        T.Resize((320,320)),
+        T.ToTensor(),
+        T.Normalize(mean = [0.485, 0.456, 0.406], #igual imagenet
+        std = [0.229, 0.224, 0.225])
+    ])
 
-    # freeze generator
-    for param in generator.parameters():
-        param.requires_grad = False
 
-    # 8 distinct outputs
+
+    # 2. Inicialização do Loader customizado
+    data_manager = Panicum_halfsize_loader(bs=bs)
+    weights = torch.load("/home/alexandreselani/Desktop/Modulos/Datasets/pesos/resnet18_weights_best_acc.tar")["model"]
+
     transformations = np.array([
-        T.RandomRotation(degrees=[90,90]), # deterministic rotation
-        T.RandomRotation(degrees=[180,180]),
-        T.RandomRotation(degrees=[270,270]),
-        T.RandomRotation(degrees=[360,360]), # original input
-        T.Compose([T.RandomHorizontalFlip(p=1.), T.RandomRotation(degrees=[90,90])]), # deterministic flip + rotation
-        T.Compose([T.RandomHorizontalFlip(p=1.), T.RandomRotation(degrees=[180,180])]),
-        T.Compose([T.RandomHorizontalFlip(p=1.), T.RandomRotation(degrees=[270,270])]),
-        T.Compose([T.RandomHorizontalFlip(p=1.), T.RandomRotation(degrees=[360,360])]),
-    ])
+            T.RandomRotation(degrees=[90,90]), # deterministic rotation
+            T.RandomRotation(degrees=[180,180]),
+            T.RandomRotation(degrees=[270,270]),
+            T.RandomRotation(degrees=[360,360]), # original input
+            T.Compose([T.RandomHorizontalFlip(p=1.), T.RandomRotation(degrees=[90,90])]), # deterministic flip + rotation
+            T.Compose([T.RandomHorizontalFlip(p=1.), T.RandomRotation(degrees=[180,180])]),
+            T.Compose([T.RandomHorizontalFlip(p=1.), T.RandomRotation(degrees=[270,270])]),
+            T.Compose([T.RandomHorizontalFlip(p=1.), T.RandomRotation(degrees=[360,360])]),
+        ])
 
+    # 4. Modelo, Critério e Otimizador
 
-    for i in range(configs["epochs"]):
-        train_ce_loss, train_ss_loss, train_loss = train(generator, classifier, train_loader, optimizer, ce_loss, transformations, device)
-        val_ce_loss,val_ss_loss,val_loss = evaluate_closedSet(generator, classifier, val_loader, optimizer, ce_loss, transformations, device)
-        # test_acc, test_auroc = evaluate(generator, classifier, test_loader, threshold, KNOWN_SPLITS[config.split], config.unk_index, device)
-        #scheduler.step(val_ce)
+    model_name = NOMES.RESNET18.value
 
-        print('epoch [{}/{}], lr:{:.4f}, train loss:{:.4f}, val_loss: {:.4f}'.format(i+1, configs["epochs"], optimizer.param_groups[0]['lr'], sum(train_loss)/len(train_loss), sum(val_loss)/len(val_loss)))
+    for fold in range(N_FOLDS):
+        gc.collect()
+        torch.cuda.empty_cache()
         
-        
-    save_path = os.path.join(ckpt_path, f'{configs["classifier"]}.pth')
-    torch.save(classifier, save_path)
+        fold_dir = os.path.join(save_dir,f"Fold_{fold}")
+        os.makedirs(fold_dir,exist_ok=True)
+
+        classifier = ResNet18_GFROR(num_classes=2,num_transforms=8,weights=weights)
+        classifier = classifier.to(device)
+
+        generator = torch.load(f"/home/alexandreselani/Desktop/GFROR/ckpt/ae_panicum/panicum/fold_{fold}.pth",weights_only=False)
+
+        criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+        optimizer = torch.optim.Adam(classifier.parameters(), lr=lr, weight_decay=1e-4)
+
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, factor=0.7)
+
+        train_dataloader,val_kkc_dataloader = data_manager.load_train(fold,transform_train), data_manager.load_kkc_val(fold,transform_val)
+
+
+        for epoch in range(epochs):
+            
+            if epoch == 0:
+                for param in classifier.parameters():
+                    param.requires_grad = False
+
+                for param in classifier.classification.parameters():
+                    param.requires_grad = True
+                for param in classifier.transformation.parameters():
+                                    param.requires_grad = True
+            elif epoch == 5:
+                for param in classifier.layer3.parameters():
+                    param.requires_grad = True
+                for param in classifier.layer4.parameters():
+                    param.requires_grad = True
+
+    
+            train_ce_loss, train_ss_loss, train_loss = train(generator, classifier, train_dataloader, optimizer, criterion, transformations, device)
+            val_ce_loss,val_ss_loss,val_loss = evaluate_closedSet(generator, classifier, val_kkc_dataloader, optimizer, criterion, transformations, device)
+            
+    
+            print('epoch [{}/{}], lr:{:.4f}, train loss:{:.4f}, val_loss: {:.4f}'.format(epoch+1, epochs, optimizer.param_groups[0]['lr'], sum(train_loss)/len(train_loss), sum(val_loss)/len(val_loss)))
+            
+            
+        save_path = os.path.join(fold_dir, f'ckpt.pth')
+        torch.save(classifier, save_path)
+
+        del classifier,train_dataloader,val_kkc_dataloader,optimizer,criterion,scheduler
 
 if __name__ == "__main__":
     main()

@@ -22,8 +22,8 @@ from model.vanilla_ae import VanillaAE
 from model.wgan import WGAN_GP
 from model.utils import to_img, to_4d
 
-from Modelos import LeNet_GFROR
-from Datasets import Mnist_omni_loader
+from Modelos import ResNet18_GFROR
+from Datasets import Panicum_halfsize_loader
 from Utils import NOMES, fix_random_seed, metricasImplementadas
 
 fix_random_seed(42)
@@ -31,18 +31,17 @@ fix_random_seed(42)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE=128
 MODEL = "ResNet18"
-result_dir = f"/home/alexandreselani/Desktop/GFROR/results/mnist_omni/{MODEL}"
-generator_path = f"/home/alexandreselani/Desktop/GFROR/ckpt/ae_mnist_omni/Mnist_omni/ckpt.pth"
-classifier_path = f"/home/alexandreselani/Desktop/GFROR/ckpt/openset_ae_mnist_omni/Mnist_omni/{MODEL}.pth"
+result_dir = f"/home/alexandreselani/Desktop/GFROR/results/panicum/{MODEL}"
+generator_path = f"/home/alexandreselani/Desktop/GFROR/ckpt/panicum/Panicum/{MODEL}"
+classifier_path = f"/home/alexandreselani/Desktop/GFROR/ckpt/openset_ae_mnist_omni/panicum/{MODEL}"
 os.makedirs(result_dir,exist_ok=True)
 
 
-G = torch.load(generator_path,weights_only=False).to(DEVICE)
-C = torch.load(classifier_path,weights_only=False).to(DEVICE)
 
-test_transform = T.Compose([T.Resize(32),T.Grayscale(num_output_channels=3),T.ToTensor(), #T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
+
+test_transform = T.Compose([T.Resize(320),T.ToTensor(), #T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
     ])
-data_manager = Mnist_omni_loader(BATCH_SIZE,test_transform)
+data_manager = Panicum_halfsize_loader(BATCH_SIZE)
 
 transformations = np.array([
         T.RandomRotation(degrees=[90,90]), # deterministic rotation
@@ -55,7 +54,7 @@ transformations = np.array([
         T.Compose([T.RandomHorizontalFlip(p=1.), T.RandomRotation(degrees=[360,360])]),
     ])
 
-def predict(dataloader):
+def predict(dataloader,G,C):
     G.eval()
     C.eval()
 
@@ -99,36 +98,39 @@ def threshold(max_act,preds,epsilon):
     return predict
 
 def val(epsilons):
-    val_loader = data_manager.load_gridsearch()
-    results_by_epsilon = {}
+    for fold in N_FOLDS:
+        val_loader = data_manager.load_val(fold,test_transform)
+        results_by_epsilon = {}
+        
+        G = torch.load(os.path.join(generator_path,f"fold_{fold}.pth"),weights_only=False).to(DEVICE)
+        C = torch.load(os.path.join(classifier_path,f"Fold_{fold}","ckpt.pth"),weights_only=False).to(DEVICE)
+        max_act, preds, known_score, unknown_score, labels = predict(val_loader)
     
-    max_act, preds, known_score, unknown_score, labels = predict(val_loader)
-   
-    for epsilon in epsilons:
-        predicts = threshold(max_act,preds,epsilon)
+        for epsilon in epsilons:
+            predicts = threshold(max_act,preds,epsilon)
 
-        metricas = metricasImplementadas(predicts,labels,outlier_scores=-unknown_score,metodo="opengan")
-        metricas = metricas._metricas()
-        results_by_epsilon[epsilon] = {
-                "epsilon": epsilon,
-                "f1_macro": metricas["F1 macro"],
-                "accuracy": metricas["accuracy"][0],
-                "uuc_accuracy": metricas["UUC Accuracy"][0],
-                "inner_metric": metricas["inner metric"][0],
-                "outer_metric": metricas["outer metric"][0],
-                "halfpoint": metricas["halfpoint"][0],
-                "auroc": metricas["auroc"]}
-    
-    final_data = []
+            metricas = metricasImplementadas(predicts,labels,outlier_scores=-unknown_score,metodo="opengan")
+            metricas = metricas._metricas()
+            results_by_epsilon[epsilon] = {
+                    "epsilon": epsilon,
+                    "f1_macro": metricas["F1 macro"],
+                    "accuracy": metricas["accuracy"][0],
+                    "uuc_accuracy": metricas["UUC Accuracy"][0],
+                    "inner_metric": metricas["inner metric"][0],
+                    "outer_metric": metricas["outer metric"][0],
+                    "halfpoint": metricas["halfpoint"][0],
+                    "auroc": metricas["auroc"]}
+        
+        final_data = []
 
-    for epsilon in sorted(results_by_epsilon.keys()):
-        metrics = results_by_epsilon[epsilon]
-        final_data.append(metrics)
+        for epsilon in sorted(results_by_epsilon.keys()):
+            metrics = results_by_epsilon[epsilon]
+            final_data.append(metrics)
 
-    df = pandas.DataFrame(final_data)
+        df = pandas.DataFrame(final_data)
 
-    os.makedirs(name=result_dir,exist_ok=True)
-    df.to_csv(os.path.join(result_dir,"Resultados_model_selection.csv"),index=False,float_format="%.3f")
+        os.makedirs(name=result_dir,exist_ok=True)
+        df.to_csv(os.path.join(result_dir,"Resultados_model_selection.csv"),index=False,float_format="%.3f")
 
 def test(epsilons):
     test_loader = data_manager.load_test()

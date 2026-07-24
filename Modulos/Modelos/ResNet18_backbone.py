@@ -104,9 +104,9 @@ class ResNet18_GFROR(nn.Module):
         transformation_out: (batch, num_transforms)
     """
 
-    def __init__(self, num_classes=10, num_transforms=10):
+    def __init__(self, num_classes=10, num_transforms=10, weights=None):
         super().__init__()
-        backbone = resnet18(weights=None)
+        backbone = resnet18(weights=weights)
 
         # Conv1 — 6 canais de entrada (concatenação x + x_hat), 32x32
         self.conv1 = nn.Conv2d(6, 64, kernel_size=7, stride=2, padding=3, bias=False)

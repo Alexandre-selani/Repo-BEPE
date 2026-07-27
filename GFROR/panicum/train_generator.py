@@ -85,10 +85,10 @@ class PerceptualLoss(nn.Module):
 def main():
 
     config = {
-        "batch_size": 20,
-        "learning_rate":0.0005,
+        "batch_size": 15,
+        "learning_rate":0.0003,
         "betas":(0.5, 0.999),
-        "epochs": 100,
+        "epochs": 35,
         "type":"train panicum ae",
         "vis_only":True,
     }
@@ -96,7 +96,7 @@ def main():
     train_transform = T.Compose([
     T.Resize((320, 320)),
     # Altere brilho, contraste, SATURAÇÃO e MATRIZ (Hue) agressivamente
-    T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.5, hue=0.2),
+    T.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.4, hue=0.1),
     # Opcional: Transforme algumas imagens em escala de cinza aleatoriamente
     T.ToTensor(),
     
@@ -114,11 +114,11 @@ def main():
         val_loader = data_manager.load_kkc_val(fold,val_transform)
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model = VanillaAE320(512).to(device)
+        model = VanillaAE320(1000).to(device)
         loss_fn = torch.nn.L1Loss().to(device)
         #loss_fn = L1SSIMLoss().to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=config["learning_rate"], betas=config["betas"], weight_decay=1e-4)
-        scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.8, patience=8, threshold_mode='abs')
+        scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.8, patience=3, threshold_mode='abs')
 
         ckpt_path = os.path.join("./ckpt/ae_panicum", "panicum")
         out_path = os.path.join("./output/ae_panicum", "panicum")

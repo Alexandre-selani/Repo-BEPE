@@ -104,7 +104,7 @@ def main():
     gc.collect()
 
     lr = 0.00005
-    epochs = 20
+    epochs = 40
     bs = 20
     num_classes = 2
 
@@ -113,14 +113,14 @@ def main():
         T.Resize((320,320)),
         
         T.ToTensor(),
-        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        #T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
     transform_val =T.Compose([
         T.Resize((320,320)),
         T.ToTensor(),
-        T.Normalize(mean = [0.485, 0.456, 0.406], #igual imagenet
-        std = [0.229, 0.224, 0.225])
+        #T.Normalize(mean = [0.485, 0.456, 0.406], #igual imagenet
+        #std = [0.229, 0.224, 0.225])
     ])
 
 
@@ -184,7 +184,7 @@ def main():
             train_ce_loss, train_ss_loss, train_loss = train(generator, classifier, train_dataloader, optimizer, criterion, transformations, device)
             val_ce_loss,val_ss_loss,val_loss = evaluate_closedSet(generator, classifier, val_kkc_dataloader, optimizer, criterion, transformations, device)
             
-    
+            scheduler.step(sum(val_loss)/len(val_loss))
             print('epoch [{}/{}], lr:{:.4f}, train loss:{:.4f}, val_loss: {:.4f}'.format(epoch+1, epochs, optimizer.param_groups[0]['lr'], sum(train_loss)/len(train_loss), sum(val_loss)/len(val_loss)))
             
             

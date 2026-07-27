@@ -40,6 +40,7 @@ class metricLogger:
             self.matrizes_confusao_acumulada = {e: None for e in self.epsilons}
 
     def update(self,metrics,fold,epsilon):
+        epsilon = round(epsilon,2)
         """Registra as métricas de uma execução (combinação fold + epsilon).
 
         Args:
@@ -59,6 +60,7 @@ class metricLogger:
         self.results_by_fold[fold].append(current_epsilon_fold_data)
 
     def update_mc(self,epsilon,predicts,targets,original_targets):
+        epsilon = round(epsilon,2)
         """Atualiza a matriz de confusão acumulada para um dado epsilon.
 
         Se a matriz ainda não existe para este epsilon, cria uma nova.

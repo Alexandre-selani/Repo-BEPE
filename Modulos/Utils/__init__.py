@@ -2,8 +2,10 @@ from .Dataset_utils import *
 from .AnaliseGraficaVal import *
 from .Model_utils import *
 from .metricasImplementadas import metricasImplementadas
+from .metricasImplementadasV2 import metricasImplementadasV2
 from .Nomes import *
 from .PCA_plot import *
 from .LinewithSTD import *
 from .Utils import CACLoss
 from .matriz_confusao_osr_dataset_outlier_cumulativa import *
+from .metricLogger import metricLogger

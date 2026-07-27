@@ -38,7 +38,7 @@ import pandas as pd
 import gc
 import copy
 import math
-from Utils import fix_random_seed,NOMES,metricasImplementadas
+from Utils import fix_random_seed,NOMES,metricasImplementadasV2,metricLogger
 from Utils.Model_utils import train,eval
 from Datasets import Panicum_halfsize_loader
 from Modelos import ResNet18
@@ -74,7 +74,7 @@ def test(test_loader,detector):
     
     #print(labels.shape,outlier_scores.shape)
     #ood_metrics.update(score[:,0],y)
-    metricas = metricasImplementadas(predict=predicts, label=labels, outlier_scores=outlier_scores,metodo="openmax")
+    metricas = metricasImplementadasV2(predict=predicts, label=labels, outlier_scores=outlier_scores,metodo="openmax")
 
     #print(ood_metrics.compute())
     #print(predicts,labels)
@@ -84,28 +84,29 @@ def test(test_loader,detector):
 
 def grid_search():
     nomeDataset = "Panicum"
-    output_dir = "/home/alexandreselani/Desktop/pytorch-ood/pytorch-ood/experimento_panicum_plantnet/Val/"
+    output_dir = "/home/alexandreselani/Desktop/pytorch-ood/pytorch-ood/teste_metricLogger/Val/"
     os.makedirs(output_dir, exist_ok=True)
     
     
     data_manager = Panicum_halfsize_loader(bs=32)
 
     min_tailsize = 0
-    max_tailsize = 50
+    max_tailsize = 30
     step_tail = 5
     tails = list(range(min_tailsize, max_tailsize+1, step_tail))
-    alphas = [1, 2]
-    epsilons = np.arange(0,1,0.1)
+    alphas = [2]
+    epsilons = np.arange(0,1,0.2)
+
+    
 
     for alpha in alphas:
         for epsilon in epsilons:
 
-            epsilon = round(epsilon,2)
-            results_by_tail = {tail: {'f1': [], 'acc': [], 'uuc_acc': [], 'inner': [], 'outer': [], 'half': [], 'auroc': []} for tail in tails}
-            matrizes_confusao_acumulada = {tail: None for tail in tails}
+            pasta = f"alpha_{alpha}/epsilon_{epsilon}/"
+            organized_dir = os.path.join(output_dir, pasta)
+            os.makedirs(organized_dir, exist_ok=True)
 
-            # 1. Cria um dicionário para segurar as linhas de cada fold
-            fold_data_dict = {fold: [] for fold in range(5)}
+            registra_metricas = metricLogger(tails,5,organized_dir)
 
             for fold in range(5):
                 gc.collect()
@@ -131,83 +132,12 @@ def grid_search():
 
                     metricas, predicts, targets_val = test(val_dataloader, detector)
 
-                    results_by_tail[tail]['f1'].append(metricas["F1 macro"])
-                    results_by_tail[tail]['acc'].append(metricas["accuracy"][0])
-                    results_by_tail[tail]['uuc_acc'].append(metricas["UUC Accuracy"][0])
-                    results_by_tail[tail]['inner'].append(metricas["inner metric"][0])
-                    results_by_tail[tail]['outer'].append(metricas["outer metric"][0])
-                    results_by_tail[tail]['half'].append(metricas["halfpoint"][0])
-                    results_by_tail[tail]['auroc'].append(metricas['auroc'])
-
-                    # 2. Salva o resultado ESPECÍFICO DESTE FOLD
-                    fold_data_dict[fold].append({
-                        "tail": tail,
-                        "f1": metricas["F1 macro"],
-                        "acc": metricas["accuracy"][0],
-                    #    "uuc_acc": metricas["UUC Accuracy"][0],
-                        "inner": metricas["inner metric"][0],
-                        "outer": metricas["outer metric"][0],
-                        "half": metricas["halfpoint"][0],
-                        "auroc": metricas["auroc"]
-                    })
-
-                    if matrizes_confusao_acumulada[tail] is None:
-                        matriz = mc(predicts, targets_val, all_targets, [], ["Panicum", "Ground", "Healthy"])
-                        matriz.computa_matriz()
-                        matrizes_confusao_acumulada[tail] = matriz
-                    else:
-                        matrizes_confusao_acumulada[tail].set_data(predicts, targets_val, all_targets)
-                        matrizes_confusao_acumulada[tail].computa_matriz()
+                    registra_metricas.update(metricas,fold,tail)
+                    registra_metricas.update_mc(tail,predicts,targets_val,all_targets)
 
                     del detector
                 
-
-            final_data = []
-            pasta = f"alpha_{alpha}/epsilon_{epsilon}/"
-            organized_dir = os.path.join(output_dir, pasta)
-            os.makedirs(organized_dir, exist_ok=True)
-
-            for tail in sorted(results_by_tail.keys()):
-                
-                metrics = results_by_tail[tail]
-                row = {
-                    "tail": tail,
-                    "f1_macro_mean": np.mean(metrics['f1']),
-                    "f1_macro_std": np.std(metrics['f1']),
-                    "acc_mean": np.mean(metrics['acc']),
-                    "acc_std": np.std(metrics['acc']),
-                  #  "uuc_acc_mean": np.mean(metrics['uuc_acc']),
-                  #  "uuc_acc_std": np.std(metrics['uuc_acc']),
-                    "inner_mean": np.mean(metrics['inner']),
-                    "inner std": np.std(metrics["inner"]),
-                    "outer_mean": np.mean(metrics['outer']),
-                    "outer_std": np.std(metrics["outer"]),
-                    "halfpoint_mean": np.mean(metrics['half']),
-                    "halfpoint_std": np.std(metrics['half']),
-                    "auroc_mean": np.mean(metrics['auroc']),
-                    "auroc_std": np.std(metrics['auroc'])
-                }
-                final_data.append(row)
-                
-                matrizes_confusao_acumulada[tail].exibe_matriz(dir=organized_dir, name=f"tail_{tail}")
-
-            # ==========================================
-            # 3. NOVO: Salva os arquivos de cada fold para o atual Alpha/Epsilon
-            # ==========================================
-            for fold in range(5):
-                df_fold = pd.DataFrame(fold_data_dict[fold])
-                nome_arquivo_fold = f"Results_Fold_{fold}_alpha_{alpha}_eps_{epsilon}.csv"
-                caminho_fold = os.path.join(output_dir,f"alpha_{alpha}",f"epsilon_{epsilon}","Folds")
-                os.makedirs(caminho_fold,exist_ok=True)
-                caminho_fold = os.path.join(caminho_fold,nome_arquivo_fold)
-                df_fold.to_csv(caminho_fold, index=False, float_format="%.3f")
-                print(f"[*] Arquivo do Fold {fold} gerado: {nome_arquivo_fold}")
-
-            df = pd.DataFrame(final_data)
-            filename_csv = f"Results_grid_panicum_tail_{min_tailsize}_{max_tailsize}_eps_{epsilon}_alpha_{alpha}_plantnet.csv"
-            csv_path = os.path.join(organized_dir, filename_csv)
-            df.to_csv(csv_path, index=False, float_format="%.3f")
-            print(f"Arquivo salvo: {csv_path}")
+            registra_metricas.aggregate("gridsearch.csv")
 
 def test_hiperparameters(alphas, epsilons, tails):
     output_dir = "/home/alexandreselani/Desktop/pytorch-ood/pytorch-ood/experimento_panicum_plantnet/Test/"
@@ -330,4 +260,4 @@ if __name__ == '__main__':
     alphas = [2]
     epsilons = [0.5]
     tails = [10]
-    test_hiperparameters(alphas,epsilons,tails)
+    #test_hiperparameters(alphas,epsilons,tails)

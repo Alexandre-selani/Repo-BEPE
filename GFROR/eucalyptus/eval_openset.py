@@ -11,7 +11,7 @@ from tqdm import tqdm
 import numpy as np
 import pandas
 import random
-
+from torchvision.models import AlexNet_Weights
 from collections import Counter
 from torchvision.utils import make_grid, save_image
 from torch.optim.lr_scheduler import StepLR, ReduceLROnPlateau
@@ -23,25 +23,25 @@ from model.wgan import WGAN_GP
 from model.utils import to_img, to_4d
 
 from Modelos import ResNet18_GFROR
-from Datasets import Panicum_halfsize_loader
+from Datasets import Eucalyptus_openset_loader
 from Utils import NOMES, fix_random_seed, metricasImplementadasV2,metricLogger
 
 fix_random_seed(42)
 # ─── Config ──────────────────────────────────────────────────────────────
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE=20
-MODEL = "ResNet18"
+MODEL = "AlexNet"
 N_FOLDS = 5
 
-result_dir = f"/home/alexandreselani/Desktop/GFROR/results/panicum/{MODEL}"
-generator_path = f"/home/alexandreselani/Desktop/GFROR/ckpt/ae_panicum/panicum/"
-classifier_path = f"/home/alexandreselani/Desktop/GFROR/ckpt/openset_ae_panicum/{MODEL}"
+result_dir = f"/home/alexandreselani/Desktop/GFROR/results/eucalyptus/{MODEL}"
+generator_path = f"/home/alexandreselani/Desktop/GFROR/ckpt/ae_eucalyptus/eucalyptus/"
+classifier_path = f"/home/alexandreselani/Desktop/GFROR/ckpt/openset_ae_eucalyptus/{MODEL}"
 os.makedirs(result_dir,exist_ok=True)
 
+weights = AlexNet_Weights.IMAGENET1K_V1
 
-test_transform = T.Compose([T.Resize(320),T.ToTensor(), #T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
-    ])
-data_manager = Panicum_halfsize_loader(BATCH_SIZE)
+test_transform = weights.transforms()
+data_manager = Eucalyptus_openset_loader(BATCH_SIZE)
 
 transformations = np.array([
         T.RandomRotation(degrees=[90,90]), # deterministic rotation
@@ -99,7 +99,7 @@ def threshold(max_act,preds,epsilon):
 
 def val(epsilons):
 
-    logger = metricLogger(epsilons,N_FOLDS,os.path.join("/home/alexandreselani/Desktop/GFROR/results/Panicum/Val/"))
+    logger = metricLogger(epsilons,N_FOLDS,os.path.join("/home/alexandreselani/Desktop/GFROR/results/eucalyptus/Val/"))
     for fold in range(N_FOLDS):
         val_loader = data_manager.load_val(fold,test_transform)
         
@@ -121,7 +121,7 @@ def val(epsilons):
     logger.aggregate("Val.csv")
 
 def test(epsilons):
-    logger = metricLogger(epsilons,N_FOLDS,os.path.join("/home/alexandreselani/Desktop/GFROR/results/Panicum/Test/"))
+    logger = metricLogger(epsilons,N_FOLDS,os.path.join("/home/alexandreselani/Desktop/GFROR/results/eucalyptus/Test/"))
 
     for fold in range(N_FOLDS):
         test_loader = data_manager.load_test(fold,test_transform)
@@ -144,8 +144,8 @@ def test(epsilons):
     logger.aggregate("Test.csv")
     
 
-thresholds = np.arange(0,5,0.2)
+thresholds = np.arange(-1,5,0.1)
 #train()
 
 val(thresholds)
-#test(thresholds)
+test(thresholds)

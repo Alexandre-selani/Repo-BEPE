@@ -6,6 +6,7 @@ import torchvision
 import torchvision.transforms as T
 from torch.utils.data import DataLoader, random_split, SubsetRandomSampler
 from torchvision.utils import make_grid, save_image
+from torchvision.models import AlexNet_Weights
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import numpy as np
@@ -18,12 +19,12 @@ from torch.optim.lr_scheduler import StepLR, ReduceLROnPlateau
 from sklearn.metrics import roc_curve, roc_auc_score, auc
 from torchmetrics import AUROC
 
-from model.vanilla_ae import VanillaAE
+from model.vanilla_ae import VanillaAE_eucalyptus
 from model.wgan import WGAN_GP
 from model.utils import to_img, to_4d
 from model.classifier import Classifier
-from Modelos import LeNet_GFROR,ResNet18_GFROR
-from Datasets import Panicum_halfsize_loader
+from Modelos import LeNet_GFROR,AlexNet_GFROR
+from Datasets import Eucalyptus_openset_loader
 from Utils import fix_random_seed,NOMES
 
 
@@ -53,6 +54,13 @@ def train(G, C, dataloader, optimizer, loss_fn, transformations, device):
 
         loss = 0.8 * ce_loss + 0.2 * ss_loss
 
+        cls_out, ss_out = C(concat_t)
+
+        pred = ss_out.argmax(1)
+        acc = (pred == trans_ind.to(device)).float().mean()
+
+        print(acc.item())
+        
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -75,9 +83,11 @@ def evaluate_closedSet(G, C, dataloader, optimizer, loss_fn, transformations, de
             x_hat = G(x)
             concat_x = torch.cat((x, x_hat), dim=1)
             ce_loss = loss_fn(C(concat_x)[0], y)
-
+    
+            
+    
             ce_losses.append(ce_loss.item())
- 
+           
 
     return ce_losses
 
@@ -87,35 +97,20 @@ device = "cuda:0"
 def main():
 
     N_FOLDS=5
-    save_dir = os.path.join("/home/alexandreselani/Desktop/GFROR/ckpt/openset_ae_panicum",NOMES.RESNET18.value)
+    save_dir = os.path.join("/home/alexandreselani/Desktop/GFROR/ckpt/openset_ae_eucalyptus","AlexNet")
     os.makedirs(save_dir,exist_ok=True)
     gc.collect()
 
-    lr = 0.00005
-    epochs = 40
+    lr = 0.0001
+    epochs = 20
     bs = 20
     num_classes = 2
 
-    # 1. Definição das Transformações
-    transform_train = T.Compose([
-        T.Resize((320,320)),
-        
-        T.ToTensor(),
-        #T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
-
-    transform_val =T.Compose([
-        T.Resize((320,320)),
-        T.ToTensor(),
-        #T.Normalize(mean = [0.485, 0.456, 0.406], #igual imagenet
-        #std = [0.229, 0.224, 0.225])
-    ])
-
-
+    weights = AlexNet_Weights.IMAGENET1K_V1
+    transforms = weights.transforms()
 
     # 2. Inicialização do Loader customizado
-    data_manager = Panicum_halfsize_loader(bs=bs)
-    weights = torch.load("/home/alexandreselani/Desktop/Modulos/Datasets/pesos/resnet18_weights_best_acc.tar")["model"]
+    data_manager = Eucalyptus_openset_loader(bs=bs)
 
     transformations = np.array([
             T.RandomRotation(degrees=[90,90]), # deterministic rotation
@@ -130,7 +125,7 @@ def main():
 
     # 4. Modelo, Critério e Otimizador
 
-    model_name = NOMES.RESNET18.value
+    model_name = "AlexNet"
 
     for fold in range(N_FOLDS):
         gc.collect()
@@ -139,34 +134,21 @@ def main():
         fold_dir = os.path.join(save_dir,f"Fold_{fold}")
         os.makedirs(fold_dir,exist_ok=True)
 
-        classifier = ResNet18_GFROR(num_classes=2,num_transforms=8,weights=weights)
+        classifier = AlexNet_GFROR(num_classes=2,num_transforms=8)
         classifier = classifier.to(device)
 
-        generator = torch.load(f"/home/alexandreselani/Desktop/GFROR/ckpt/ae_panicum/panicum/fold_{fold}.pth",weights_only=False)
+        generator = torch.load(f"/home/alexandreselani/Desktop/GFROR/ckpt/ae_eucalyptus/eucalyptus/fold_{fold}.pth",weights_only=False)
 
         criterion = nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(classifier.parameters(), lr=lr, weight_decay=1e-4)
 
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, factor=0.7)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=10, factor=0.7)
 
-        train_dataloader,val_kkc_dataloader = data_manager.load_train(fold,transform_train), data_manager.load_kkc_val(fold,transform_val)
+        train_dataloader,val_kkc_dataloader = data_manager.load_train(fold,transforms), data_manager.load_kkc_val(fold,transforms)
 
 
         for epoch in range(epochs):
             
-            if epoch == 0:
-                for param in classifier.parameters():
-                    param.requires_grad = False
-
-                for param in classifier.classification.parameters():
-                    param.requires_grad = True
-                for param in classifier.transformation.parameters():
-                                    param.requires_grad = True
-            elif epoch == 5:
-                for param in classifier.parameters():
-                        param.requires_grad = True
-
-    
             train_ce_loss, train_ss_loss, train_loss = train(generator, classifier, train_dataloader, optimizer, criterion, transformations, device)
             val_loss = evaluate_closedSet(generator, classifier, val_kkc_dataloader, optimizer, criterion, transformations, device)
             

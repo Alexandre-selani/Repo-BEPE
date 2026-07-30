@@ -1,21 +1,21 @@
 import os
-import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
+from torchvision.models import AlexNet_Weights
 import torchvision.transforms as T
 from torch.utils.data import Dataset, DataLoader
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import numpy as np
 import random
-from Datasets import Panicum_halfsize_loader
+from Datasets import Eucalyptus_openset_loader
 from Utils import NOMES
 from torchvision.utils import make_grid, save_image
 from torch.optim.lr_scheduler import StepLR, ReduceLROnPlateau
 
-from model.vanilla_ae import VanillaAE320, VanillaAE
+from model.vanilla_ae import VanillaAE320, VanillaAE,VanillaAE_eucalyptus
 from model.utils import to_img
 
 from Utils import fix_random_seed
@@ -59,56 +59,35 @@ def vis(model, dataloader, filename, config, device):
     merged = torch.stack((org,recons),dim=1).view(-1,3,32,32)
     save_image(merged, os.path.join(config.out_path, filename))
 
-from torchmetrics.image import StructuralSimilarityIndexMeasure
-
-import torch
-import torch.nn as nn
-from torchvision.models import vgg16, VGG16_Weights
-
-class PerceptualLoss(nn.Module):
-    def __init__(self):
-        super().__init__()
-        # Carrega VGG16 pré-treinada apenas para extrair features
-        vgg = vgg16(weights=VGG16_Weights.DEFAULT).features[:16].eval()
-        for param in vgg.parameters():
-            param.requires_grad = False  # Congela os pesos da VGG
-        self.vgg = vgg
-        self.l1 = nn.L1Loss()
-
-    def forward(self, recon, target):
-        # Extrai features de ambas as imagens e compara
-        recon_features = self.vgg(recon)
-        target_features = self.vgg(target)
-        
-        # Combina Loss Perceptual com uma fração da Loss L1 de pixel
-        return self.l1(recon_features, target_features) + 0.1 * self.l1(recon, target)
-
 def main():
 
     config = {
-        "batch_size": 10,
+        "batch_size": 32,
         "learning_rate":0.0001,
         "betas":(0.5, 0.999),
-        "epochs": 40,
-        "type":"train panicum ae",
+        "epochs": 50,
+        "dataset":"dataset-1",
+        "type":"train ecualyptus ae",
         "vis_only":True,
     }
 
-    train_transform = T.Compose([
-    T.Resize((320, 320)),
-    # Altere brilho, contraste, SATURAÇÃO e MATRIZ (Hue) agressivamente
-    T.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.4, hue=0.1),
-    # Opcional: Transforme algumas imagens em escala de cinza aleatoriamente
-    T.ToTensor(),
-    
-])
-    val_transform = T.Compose([T.Resize(320),T.ToTensor(), #T.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
-    ])
-    data_manager = Panicum_halfsize_loader(config["batch_size"])
+    weights = AlexNet_Weights.IMAGENET1K_V1
+    train_transform = weights.transforms()
+    val_transform = weights.transforms()
+
+#     train_transform = T.Compose([
+#     T.Resize((32, 32)),
+#     T.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1),
+#     T.ToTensor()
+# ])
+
+#     val_transform = T.Compose([T.Resize(32), T.ToTensor()])
+ 
+    data_manager = Eucalyptus_openset_loader(config["batch_size"])
 
     import gc
     for fold in range(5):
-        best_loss = 9999
+        best_val_loss = 999999
 
         gc.collect()
         torch.cuda.empty_cache()
@@ -117,14 +96,14 @@ def main():
         val_loader = data_manager.load_kkc_val(fold,val_transform)
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model = VanillaAE320(512).to(device)
+        model = VanillaAE_eucalyptus(512).to(device)
         loss_fn = torch.nn.L1Loss().to(device)
         #loss_fn = L1SSIMLoss().to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=config["learning_rate"], betas=config["betas"], weight_decay=1e-4)
-        scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.8, patience=3, threshold_mode='abs')
+        scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.8, patience=4, threshold_mode='abs')
 
-        ckpt_path = os.path.join("./ckpt/ae_panicum", "panicum")
-        out_path = os.path.join("./output/ae_panicum", "panicum")
+        ckpt_path = os.path.join("./ckpt/ae_eucalyptus", "eucalyptus")
+        out_path = os.path.join("./output/ae_eucalyptus", "eucalyptus")
 
 
         if not os.path.exists(out_path):
@@ -134,7 +113,6 @@ def main():
 
         train_losses = []
         val_losses = []
-        best_model_state = None
 
         for i in range(config["epochs"]):
             train_loss = train(model, train_loader, optimizer, loss_fn, device)
@@ -154,26 +132,20 @@ def main():
                     for batch, _ in val_loader:
                         batch = batch.to(device)
                         out = model(batch)
-                        all_org.append(to_img(batch.cpu().data, 320))
-                        all_recons.append(to_img(out.cpu().data, 320))
+                        all_org.append(to_img(batch.cpu().data, 224))
+                        all_recons.append(to_img(out.cpu().data, 224))
                 org = torch.cat(all_org, dim=0)
                 recons = torch.cat(all_recons, dim=0)
-                merged = torch.stack((org, recons), dim=1).view(-1, 3, 320, 320)
+                merged = torch.stack((org, recons), dim=1).view(-1, 3, 224, 224)
                 image_path = os.path.join(out_path, f"fold_{fold}")
                 if not os.path.exists(image_path):
                     os.makedirs(image_path)
                 save_image(merged, os.path.join(image_path, "vanilla_recons_epoch{}.png".format(i+1)))
 
-            if(val_loss < best_loss):
-                best_model_state = copy.deepcopy(model.state_dict())
-                print("melhor modelo salvo na RAM")
-                best_loss = val_loss
-
-        # Grava o melhor modelo em disco depois que todas as épocas terminarem
-        if best_model_state is not None:
-            model.load_state_dict(best_model_state)
-            torch.save(model, os.path.join(ckpt_path, f"fold_{fold}.pth"))
-            print(f"melhor modelo da fold {fold} gravado em disco")
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                torch.save(model, os.path.join(ckpt_path, f"fold_{fold}.pth"))
+                print("modelo salvo")
 
         optimizer.zero_grad()
         del train_loader,val_loader,model,optimizer,loss_fn

@@ -117,8 +117,12 @@ class ResNet18_GFROR(nn.Module):
         self.layer1 = backbone.layer1
         self.layer2 = backbone.layer2
         self.layer3 = backbone.layer3
-        self.layer4 = backbone.layer4
-        self.avgpool = backbone.avgpool                   # adaptive_avg_pool2d(1)
+        
+        self.layer4_class = backbone.layer4
+        self.avgpool_class = backbone.avgpool       
+
+        self.layer4_trans = backbone.layer4
+        self.avgpool_trans = backbone.avgpool             # adaptive_avg_pool2d(1)
 
 
         self.classification = nn.Linear(512, num_classes)
@@ -133,12 +137,17 @@ class ResNet18_GFROR(nn.Module):
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
-        x = self.layer4(x)
 
-        x = self.avgpool(x)                               # (batch, 512, 1, 1)
-        x = torch.flatten(x, 1)                           # (batch, 512)
+        x_class = self.layer4_class(x)
+        x_class = self.avgpool_class(x_class)
+        
+        x_trans = self.layer4_trans(x)
+        x_trans = self.avgpool_trans(x_trans)   
+                                    
+        x_class = torch.flatten(x_class, 1)
+        x_trans = torch.flatten(x_trans,1)                          
 
 
-        classification_out = self.classification(x)
-        transformation_out = self.transformation(x)
+        classification_out = self.classification(x_class)
+        transformation_out = self.transformation(x_trans)
         return classification_out, transformation_out

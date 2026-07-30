@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-from model.encoder import Encoder,Encoder320
-from model.decoder import Decoder,Decoder320
+from model.encoder import Encoder,Encoder320,Encoder_eucalyptus
+from model.decoder import Decoder,Decoder320,Decoder_eucalyptus
 
 class VanillaAE(nn.Module):
     def __init__(self, latent_size=100):
@@ -27,4 +27,26 @@ class VanillaAE320(nn.Module):
 
     def forward(self, x):
 
+        return self.decoder(self.encoder(x))
+
+
+
+ 
+    
+ 
+ 
+
+ 
+ 
+# ---------------------------------------------------------------------------
+# VanillaAE
+# ---------------------------------------------------------------------------
+class VanillaAE_eucalyptus(nn.Module):
+    def __init__(self, latent_size=512):
+        super().__init__()
+        self.latent_size = latent_size
+        self.encoder = Encoder_eucalyptus(latent_size)
+        self.decoder = Decoder_eucalyptus(latent_size)
+ 
+    def forward(self, x):
         return self.decoder(self.encoder(x))

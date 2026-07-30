@@ -4,7 +4,88 @@ import torch.nn as nn
 
 from model.utils import clamp_to_unit_sphere
 
+class Encoder_eucalyptus(nn.Module):
+    def __init__(self, latent_size=512, normalize_latent=True):
+        super().__init__()
+        self.normalize_latent = normalize_latent
+ 
+        self.block1 = nn.Sequential(
+            nn.Dropout2d(0.2),
+            nn.Conv2d(3, 64, 3, 1, 1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.2),
+ 
+            nn.Conv2d(64, 64, 3, 1, 1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.2),
+ 
+            nn.Conv2d(64, 64, 3, 2, 1, bias=False),   # 224 -> 112
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.2),
+        )
+ 
+        self.block2 = nn.Sequential(
+            nn.Dropout2d(0.2),
+            nn.Conv2d(64, 128, 3, 1, 1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2),
+ 
+            nn.Conv2d(128, 128, 3, 1, 1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2),
+ 
+            nn.Conv2d(128, 128, 3, 2, 1, bias=False),  # 112 -> 56
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2),
+        )
+ 
+        self.block3 = nn.Sequential(
+            nn.Dropout2d(0.2),
+            nn.Conv2d(128, 256, 3, 1, 1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2),
+ 
+            nn.Conv2d(256, 256, 3, 1, 1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2),
+ 
+            nn.Conv2d(256, 256, 3, 2, 1, bias=False),  # 56 -> 28
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2),
+        )
+ 
+        self.block4 = nn.Sequential(
+            nn.Dropout2d(0.2),
+            nn.Conv2d(256, 256, 3, 1, 1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2),
+ 
+            nn.Conv2d(256, 256, 3, 2, 1, bias=False),  # 28 -> 14
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2),
+        )
+ 
+        self.block5 = nn.Sequential(
+            nn.Dropout2d(0.2),
+            nn.Conv2d(256, 512, 3, 2, 1, bias=False),  # 14 -> 7
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(0.2),
+        )
+ 
+        self.linear = nn.Linear(512 * 7 * 7, latent_size)
 
+    def forward(self, x):
+            out = self.block1(x)
+            out = self.block2(out)
+            out = self.block3(out)
+            out = self.block4(out)
+            out = self.block5(out)
+            out = self.linear(out.reshape(out.shape[0], -1))
+        
+            out = clamp_to_unit_sphere(out)
+            
+            return out
+    
 class Encoder(nn.Module):
     def __init__(self, latent_size=100):
         super().__init__()

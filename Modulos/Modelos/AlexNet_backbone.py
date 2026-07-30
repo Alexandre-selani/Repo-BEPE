@@ -34,6 +34,74 @@ class AlexNet_cac(BaseCACClassifier):
         return encoder
 
 
+class AlexNet_GFROR(nn.Module):
+    """AlexNet adaptado para o GFROR: 6 canais de entrada (x + x_hat).
+
+    Saidas:
+        classification_out: (batch, num_classes)
+        transformation_out: (batch, num_transforms)
+    """
+
+    def __init__(self, num_classes=10, num_transforms=10):
+        super().__init__()
+        # Bloco de features baseado no AlexNet
+        # Primeira camada adaptada para 6 canais (concatenação x + x_hat)
+        self.features = nn.Sequential(
+            # Conv1 — 6 canais de entrada
+            nn.Conv2d(6, 64, kernel_size=11, stride=4, padding=2),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2),
+            # Conv2
+            nn.Conv2d(64, 192, kernel_size=5, padding=2),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2),
+            # Conv3
+            nn.Conv2d(192, 384, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            # Conv4
+            nn.Conv2d(384, 256, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            # Conv5
+            nn.Conv2d(256, 256, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2),
+        )
+        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
+
+        self.classifier = nn.Sequential(
+            nn.Dropout(),
+            nn.Linear(256 * 6 * 6, 4096),
+            nn.ReLU(inplace=True),
+            nn.Dropout(),
+        )
+
+        # Classificador compartilhado (sem a última camada linear)
+        self.classification = nn.Sequential(
+            nn.Linear(4096, 4096),
+            nn.ReLU(inplace=True),
+            nn.Linear(4096, num_classes)
+        )
+
+        
+        # Cabeça de transformação
+        self.transformation = nn.Sequential(
+                    nn.Linear(4096, 4096),
+                    nn.ReLU(inplace=True),
+                    nn.Linear(4096, num_transforms)
+                )
+       
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = self.classifier(x)
+
+        classification_out = self.classification(x)
+        transformation_out = self.transformation(x)
+        return classification_out, transformation_out
+
+
 class AlexNetFeaturizer(nn.Module):
     """Wrapper que retorna (logits, features) no forward, similar ao ResNet18Featurizer.
 

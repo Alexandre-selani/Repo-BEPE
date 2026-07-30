@@ -2,7 +2,49 @@
 import torch
 import torch.nn as nn
 
+# ---------------------------------------------------------------------------
+# Decoder — espelha o Encoder: 7 -> 14 -> 28 -> 56 -> 112 -> 224
+# SEM Sigmoid/Tanh na saída (ver docstring do módulo)
+# ---------------------------------------------------------------------------
+class Decoder_eucalyptus(nn.Module):
+    def __init__(self, latent_size=512):
+        super().__init__()
+        self.linear = nn.Linear(latent_size, 512 * 7 * 7, bias=False)
+ 
+        self.block1 = nn.Sequential(
+            nn.ConvTranspose2d(512, 256, 4, 2, 1, bias=False),  # 7 -> 14
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2),
+        )
+        self.block2 = nn.Sequential(
+            nn.ConvTranspose2d(256, 256, 4, 2, 1, bias=False),  # 14 -> 28
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2),
+        )
+        self.block3 = nn.Sequential(
+            nn.ConvTranspose2d(256, 128, 4, 2, 1, bias=False),  # 28 -> 56
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2),
+        )
+        self.block4 = nn.Sequential(
+            nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),   # 56 -> 112
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.2),
+        )
+        # última camada: com bias (não tem BN depois) e sem ativação limitante
+        self.block5 = nn.ConvTranspose2d(64, 3, 4, 2, 1)        # 112 -> 224
 
+        self.activation = nn.Sigmoid()
+    def forward(self, x):
+        out = self.linear(x).view(-1, 512, 7, 7)
+        out = self.block1(out)
+        out = self.block2(out)
+        out = self.block3(out)
+        out = self.block4(out)
+        out = self.block5(out)
+        #out = self.activation(out)
+        return out
+    
 class Decoder(nn.Module):
     def __init__(self, latent_size=100):
         super().__init__()

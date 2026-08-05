@@ -1,4 +1,4 @@
-epsilon,f1_macro_medio,f1_macro_std,acc_medio,acc_std,uuc_acc_medio,uuc_acc_std,inner_medio,inner std,outer_medio,outer_std,halfpoint_medio,halfpoint_std,auroc_media,auroc_std
+epsilon,F1 macro_mean,F1 macro_std,accuracy_mean,accuracy_std,UUC Accuracy_mean,UUC Accuracy_std,inner metric_mean,inner metric_std,outer metric_mean,outer metric_std,halfpoint_mean,halfpoint_std,auroc_mean,auroc_std
 0.000,0.460,0.007,0.506,0.000,0.000,0.000,1.000,0.000,0.506,0.000,1.000,0.000,0.976,0.018
 0.010,0.460,0.007,0.506,0.000,0.000,0.000,1.000,0.000,0.506,0.000,1.000,0.000,0.976,0.018
 0.020,0.460,0.007,0.506,0.000,0.000,0.000,1.000,0.000,0.506,0.000,1.000,0.000,0.976,0.018

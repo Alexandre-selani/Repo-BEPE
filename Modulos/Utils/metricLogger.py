@@ -24,17 +24,21 @@ class metricLogger:
         mc_column_names: Nomes das colunas para a matriz de confusão.
     """
 
-    def __init__(self,epsilons,n_folds,dir,flag_mc=True,mc_column_names = ["Panicum","Ground", "Healthy"]):
+    def __init__(self,epsilons,n_folds,dir,flag_mc=True,mc_column_names = ["Panicum","Ground", "Healthy"],mc_title=None):
         self.epsilons = [round(e,2) for e in epsilons]
         self.flag_mc = flag_mc
         self.dir = dir
         self.n_folds = n_folds
         self.mc_column_names = mc_column_names
+        self.mc_title = mc_title
 
         self.METRIC_KEYS = ("F1 macro", "accuracy", "UUC Accuracy", "inner metric", "outer metric", "halfpoint", "auroc")
 
         self.results_by_epsilon = {e:{key:[] for key in self.METRIC_KEYS} for e in self.epsilons}
-        self.results_by_fold = {fold:[] for fold in range(n_folds)}
+        if n_folds > 0:
+            self.results_by_fold = {fold:[] for fold in range(n_folds)}
+        else:
+            self.results_by_fold = {0:[]}
             
         if flag_mc:
             self.matrizes_confusao_acumulada = {e: None for e in self.epsilons}
@@ -73,7 +77,7 @@ class metricLogger:
             original_targets: Lista/array de rótulos originais (sem ajuste).
         """
         if self.matrizes_confusao_acumulada[epsilon] is None:
-            matriz = mc(predicts, targets, original_targets, [], self.mc_column_names)
+            matriz = mc(predicts, targets, original_targets, [], self.mc_column_names,self.mc_title)
             matriz.computa_matriz()
             self.matrizes_confusao_acumulada[epsilon] = matriz
         else:
@@ -114,7 +118,8 @@ class metricLogger:
         # ==========================================
         # 3. NOVO: Salva os arquivos de cada fold para o atual Alpha/Epsilon
         # ==========================================
-        for fold in range(5):
+        
+        for fold in range(self.n_folds):
             df_fold = pd.DataFrame(self.results_by_fold[fold])
             nome_arquivo_fold = f"Results_Fold_{fold}.csv"
             caminho_fold = os.path.join(self.dir,"Folds")

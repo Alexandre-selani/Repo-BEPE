@@ -84,7 +84,7 @@ def GNL(ltmin,ltmax,logits):
     """
     div = (ltmax - ltmin)
     if div == 0:
-        norm = 9999
+        norm = 999
     else:
         norm = (logits - ltmin) / div 
     with torch.no_grad():

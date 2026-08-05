@@ -5,13 +5,14 @@ import matplotlib.colors as mcolors
 import os.path
 
 class Matriz_confusao_osr_dataset_outlier_cumulativa:
-    def __init__(self,predict,target_test,target_original,UUC_classes,col_labels):
+    def __init__(self,predict,target_test,target_original,UUC_classes,col_labels,title=None):
         self.predict = predict+1
         self.target_test = target_test+1#eh preciso somar um pois podem haver targets = -1 no caso de usar um dataset inteiro como deconhecido junto com certas classes desconhecidas (como mnist + omniglot com omniglot e classes 7,8,9 como desconhecidas)
         self.target_original=target_original+1
         self.UUC_classes = np.array(UUC_classes)+1
         self.col_labels = col_labels
         self.matriz=None
+        self.title=title
         self.mapa_de_linhas = self.mapear_classes()
 
         #print(f"UUC{self.UUC_classes}")
@@ -87,7 +88,10 @@ class Matriz_confusao_osr_dataset_outlier_cumulativa:
         cax = ax.imshow(self.matriz, interpolation='nearest', cmap=cmap, norm=norm)
         fig.colorbar(cax)
 
-        ax.set_title("Confusion Matrix", pad=20)
+        if self.title:
+            ax.set_title(f"Confusion Matrix - {self.title}",pad=20)
+        else:
+            ax.set_title(f"Confusion Matrix", pad=20)
 
         # Eixo Y = previsão (linha 0 é "desconhecido")
         linhas_ordenadas = sorted(self.mapa_de_linhas.items(), key=lambda x: x[1])

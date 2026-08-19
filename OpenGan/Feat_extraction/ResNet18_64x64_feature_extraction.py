@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch
 device = 'cuda:0'
 
-class ResNet18_32x32_feature_extraction(Feature_extraction_abs):
+class ResNet18_64x64_feature_extraction(Feature_extraction_abs):
     def __init__(self, num_classes):
         super().__init__(num_classes)
         self.model = resnet18()
@@ -42,13 +42,3 @@ class ResNet18_32x32_feature_extraction(Feature_extraction_abs):
     
     def load_model(self, weights):
         self.model.load_state_dict(weights)
-def main():
-    extractor = ResNet18_feature_extraction(num_classes=10)
-    input_fake = torch.randn(64, 3, 64, 64).to(device=device)
-    features = extractor.extract_features(input_fake)
-
-    print(f"Dimensão das features da AlexNet: {features.shape}") 
-    # Resultado esperado: torch.Size([1, 4096])
-
-if __name__  == "__main__":
-    main()

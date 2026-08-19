@@ -10,6 +10,7 @@ dist/
 build/
 .eggs/
 *.egg
+tinyimagenet-200/
 
 # ============================================
 # JUPYTER NOTEBOOK CHECKPOINTS
@@ -41,6 +42,7 @@ nohup.out
 *.png
 *.jpg
 *.jpeg
+*.JPEG
 *.gif
 *.bmp
 *.tiff
@@ -54,6 +56,7 @@ nohup.out
 # Segmentacao tem um venv completo
 Segmentacao/segmentacao/
 BRACIS/
+WACV/
 
 # ============================================
 # VS CODE

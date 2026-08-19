@@ -24,13 +24,14 @@ class metricLogger:
         mc_column_names: Nomes das colunas para a matriz de confusão.
     """
 
-    def __init__(self,epsilons,n_folds,dir,flag_mc=True,mc_column_names = ["Panicum","Ground", "Healthy"],mc_title=None):
+    def __init__(self,epsilons,n_folds,dir,flag_mc=True,mc_column_names = ["Panicum","Ground", "Healthy"],mc_title=None,predict_unknown_value=-1):
         self.epsilons = [round(e,2) for e in epsilons]
         self.flag_mc = flag_mc
         self.dir = dir
         self.n_folds = n_folds
         self.mc_column_names = mc_column_names
         self.mc_title = mc_title
+        self.predict_unknown_value = predict_unknown_value
 
         self.METRIC_KEYS = ("F1 macro", "accuracy", "UUC Accuracy", "inner metric", "outer metric", "halfpoint", "auroc")
 
@@ -77,7 +78,7 @@ class metricLogger:
             original_targets: Lista/array de rótulos originais (sem ajuste).
         """
         if self.matrizes_confusao_acumulada[epsilon] is None:
-            matriz = mc(predicts, targets, original_targets, [], self.mc_column_names,self.mc_title)
+            matriz = mc(predicts, targets, original_targets, [], self.mc_column_names,self.mc_title,predict_unknown_value=self.predict_unknown_value)
             matriz.computa_matriz()
             self.matrizes_confusao_acumulada[epsilon] = matriz
         else:

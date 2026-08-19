@@ -5,34 +5,34 @@ from sklearn.model_selection import train_test_split
 # Nota: Certifique-se de que o módulo tinyimagenet esteja acessível
 from tinyimagenet import TinyImageNet 
 
-class Tinyimagenet_loader:
-    def __init__(self, bs, transform=None, target_transform=None, root=None, download=False):
-        self.bs = bs
-        self.transform = transform
-        self.target_transform = target_transform
-        self.root = root if root is not None else "~/.torchvision/tinyimagenet/"
-        self.download = download
+# class Tinyimagenet_loader:
+#     def __init__(self, bs, transform=None, target_transform=None, root=None, download=False):
+#         self.bs = bs
+#         self.transform = transform
+#         self.target_transform = target_transform
+#         self.root = root if root is not None else "~/.torchvision/tinyimagenet/"
+#         self.download = download
 
-    def load_train(self, transform=None, target_transform=None):
-        t = transform if transform is not None else self.transform
-        tt = target_transform if target_transform is not None else self.target_transform
-        train_set = TinyImageNet(root=self.root, split="train", transform=t, target_transform=tt)
-        return DataLoader(train_set, batch_size=self.bs, shuffle=True,
-                          num_workers=4, pin_memory=True, persistent_workers=True)
+#     def load_train(self, transform=None, target_transform=None):
+#         t = transform if transform is not None else self.transform
+#         tt = target_transform if target_transform is not None else self.target_transform
+#         train_set = TinyImageNet(root=self.root, split="train", transform=t, target_transform=tt)
+#         return DataLoader(train_set, batch_size=self.bs, shuffle=True,
+#                           num_workers=4, pin_memory=True, persistent_workers=True)
 
-    def load_val(self, transform=None, target_transform=None):
-        t = transform if transform is not None else self.transform
-        tt = target_transform if target_transform is not None else self.target_transform
-        val_set = TinyImageNet(root=self.root, split="val", transform=t, target_transform=tt)
-        return DataLoader(val_set, batch_size=self.bs, shuffle=False,
-                          num_workers=4, pin_memory=True, persistent_workers=True)
+#     def load_val(self, transform=None, target_transform=None):
+#         t = transform if transform is not None else self.transform
+#         tt = target_transform if target_transform is not None else self.target_transform
+#         val_set = TinyImageNet(root=self.root, split="val", transform=t, target_transform=tt)
+#         return DataLoader(val_set, batch_size=self.bs, shuffle=False,
+#                           num_workers=4, pin_memory=True, persistent_workers=True)
 
-    def load_test(self, transform=None, target_transform=None):
-        t = transform if transform is not None else self.transform
-        tt = target_transform if target_transform is not None else self.target_transform
-        test_set = TinyImageNet(root=self.root, split="test", transform=t, target_transform=tt)
-        return DataLoader(test_set, batch_size=self.bs, shuffle=False,
-                          num_workers=4, pin_memory=True, persistent_workers=True)
+#     def load_test(self, transform=None, target_transform=None):
+#         t = transform if transform is not None else self.transform
+#         tt = target_transform if target_transform is not None else self.target_transform
+#         test_set = TinyImageNet(root=self.root, split="test", transform=t, target_transform=tt)
+#         return DataLoader(test_set, batch_size=self.bs, shuffle=False,
+#                           num_workers=4, pin_memory=True, persistent_workers=True)
 
 
 class CIFAR10Loader:

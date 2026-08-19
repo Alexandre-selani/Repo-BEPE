@@ -5,8 +5,15 @@ import matplotlib.colors as mcolors
 import os.path
 
 class Matriz_confusao_osr_dataset_outlier_cumulativa:
-    def __init__(self,predict,target_test,target_original,UUC_classes,col_labels,title=None):
-        self.predict = predict+1
+    def __init__(self,predict,target_test,target_original,UUC_classes,col_labels,title=None,predict_unknown_value=-1):
+        # target_test/target_original sao sempre rotulos "crus" (desconhecido=-1, classes conhecidas=0..N-1),
+        # por isso levam +1 para cair no mesmo espaco de indices usado nas linhas/colunas da matriz.
+        # predict varia por metodo: a maioria usa a mesma convencao crua (-1=desconhecido), mas o OpenMax
+        # ja devolve o indice da propria coluna de score (0=desconhecido, 1..N=classes), que ja EH esse espaco.
+        # predict_unknown_value informa qual valor o metodo usa para "desconhecido", e a subtracao alinha
+        # qualquer uma das duas convencoes ao mesmo espaco de target_test/target_original.
+        self.predict_unknown_value = predict_unknown_value
+        self.predict = predict - predict_unknown_value
         self.target_test = target_test+1#eh preciso somar um pois podem haver targets = -1 no caso de usar um dataset inteiro como deconhecido junto com certas classes desconhecidas (como mnist + omniglot com omniglot e classes 7,8,9 como desconhecidas)
         self.target_original=target_original+1
         self.UUC_classes = np.array(UUC_classes)+1
@@ -21,7 +28,7 @@ class Matriz_confusao_osr_dataset_outlier_cumulativa:
         #print(f"predict{self.predict}")
 
     def set_data(self,predict,target_test,target_original):
-        self.predict = predict+1
+        self.predict = predict - self.predict_unknown_value
         self.target_test = target_test+1#eh preciso somar um pois podem haver targets = -1 no caso de usar um dataset inteiro como deconhecido junto com certas classes desconhecidas (como mnist + omniglot com omniglot e classes 7,8,9 como desconhecidas)
         self.target_original=target_original+1
 

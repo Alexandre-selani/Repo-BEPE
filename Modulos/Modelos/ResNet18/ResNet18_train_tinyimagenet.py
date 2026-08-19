@@ -1,90 +1,110 @@
 import torch
 from Utils import AnaliseGraficaVal, train, eval, fix_random_seed
 # Importe a classe que criamos anteriormente
-from Datasets import Tinyimagenet_loader
-
-from ResNet18_backbone import ResNet18
-from torchvision.models import ResNet18_Weights
+from Datasets import TinyImageNet_loader
+from Modelos.ResNet18_backbone import ResNet18_tinyimgnet
 from torchvision import transforms
 import torch.nn as nn
 import torch.optim as optim
 from Utils.Nomes import NOMES
+import os, gc, copy
 
 # Configurações iniciais
 fix_random_seed(42)
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
-lr = 0.001
-epochs = 40
+N_SPLITS = 5
+save_dir = os.path.join("/home/alexandreselani/Desktop/Experimento_tinyimgnet", NOMES.RESNET18.value)
+os.makedirs(save_dir, exist_ok=True)
+gc.collect()
+
+lr = 8e-4
+epochs = 100
+warmup_epochs = 5
 bs = 256
-num_classes = 200
-
-# 1. Definição das Transformações
-transform_train  = transforms.Compose([
-    transforms.RandomResizedCrop(64,scale=(0.8, 1.0)),
-    transforms.RandomHorizontalFlip(),
-    transforms.ToTensor(),transforms.ColorJitter(
-    brightness=0.2,  # randomly changes brightness by ±20%
-    contrast=0.2,    # randomly changes contrast by ±20%
-    saturation=0.2,  # randomly changes saturation by ±20%
-    hue=0.05),
-    transforms.Normalize(mean = [0.485, 0.456, 0.406],
-    std = [0.229, 0.224, 0.225]),
-])
+num_classes = 20  # classes conhecidas por split (protocolo OSR padrão do TinyImageNet)
 
 
-# 2. Inicialização do Loader customizado
-data_manager = Tinyimagenet_loader(root="~/.torchvision/tinyimagenet/",bs=bs)
-
-train_dataloader = data_manager.load_train(transform=transform_train)
-val_dataloader = data_manager.load_val(transform=NOMES.TINY_IMAGE_NET_RESNET18_VAL_TEST_TRANSFORMS.value)
 
 
-# 4. Modelo, Critério e Otimizador
-weights = ResNet18_Weights.IMAGENET1K_V1
-model = ResNet18(num_classes,weights=weights)
-model = model.to(device)
+
+def build_scheduler(optimizer, epochs, warmup_epochs):
+    # AdamW do zero (stem recem-inicializado, sem pretrain) tende a dar passos ruidosos/grandes
+    # nas primeiras epocas; um warmup linear curto antes do cosine decay evita essa instabilidade inicial.
+    warmup = optim.lr_scheduler.LinearLR(optimizer, start_factor=0.1, total_iters=warmup_epochs)
+    cosine = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs - warmup_epochs)
+    return optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup, cosine], milestones=[warmup_epochs])
+
+# 1. Inicialização do Loader customizado
+# As transformações (train/val) já são construídas internamente pelo loader,
+# normalizadas com a média/desvio das classes conhecidas de cada split.
+data_manager = TinyImageNet_loader(
+    data_dir="/home/alexandreselani/Desktop/Experimento_tinyimgnet/data/tiny-imagenet-200",
+    splits_dir="/home/alexandreselani/Desktop/Experimento_tinyimgnet/data/class_splits",
+    batch_size=bs,
+    image_size=64,
+)
+
+# 2. Modelo, Critério e Otimizador
+
 model_name = NOMES.RESNET18.value
 
-optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=1e-3)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
-criterion = torch.nn.CrossEntropyLoss()
+for split in range(N_SPLITS):
+    gc.collect()
+    torch.cuda.empty_cache()
 
-# 5. Log e Gráficos
-grafico = AnaliseGraficaVal(f"{model_name}", "TinyImageNet", dir="/home/alexandreselani/Desktop/Experimento_tinyimgnet/ResNet18")
+    split_dir = os.path.join(save_dir, f"Split_{split}")
+    os.makedirs(split_dir, exist_ok=True)
 
-# 6. Loop de Treinamento
-for epoch in range(epochs):
+    grafico = AnaliseGraficaVal(f"{model_name}_Split_{split}", "TinyImageNet", dir=split_dir)
 
-    if epoch == 0:
-        for param in model.parameters():
-            param.requires_grad = False
+    model = ResNet18_tinyimgnet(num_classes=num_classes, weights=None)
+    model = model.to(device)
 
-        for param in model.fc.parameters():
-            param.requires_grad = True
-    elif epoch == 10:
-        for param in model.parameters():
-            param.requires_grad = True
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-2)
+    scheduler = build_scheduler(optimizer, epochs=epochs, warmup_epochs=warmup_epochs)
 
+    train_dataloader = data_manager.get_train_loader(split)
+    val_kkc_dataloader = data_manager.get_val_known_loader(split)
 
-    model.train()
-    train_loss, train_acc = train(train_dataloader, model, criterion, optimizer)
-    
-    model.eval()
-    val_loss, val_acc = eval(val_dataloader, model, criterion)
-    
-    scheduler.step() 
-    
-    print(f"Epoch {epoch+1}/{epochs} | Train Loss: {train_loss:.4f} | Acc: {train_acc:.4f} | lr = {optimizer.param_groups[0]['lr']:.6f}")
-    print(f"VALIDATION    | Loss: {val_loss:.4f} | Acc: {val_acc:.4f}")
+    # Augmentacao mais forte que o padrao do loader (so nesse script, loader compartilhado intacto):
+    # com 10k imagens de treino/20 classes, o crop leve (0.8-1.0) + flip do loader nao bastava.
+    # Reusa a mesma media/desvio (do cache do loader) para manter a normalizacao consistente com a validacao.
+    mean, std = data_manager._compute_norm_stats(split)
+    train_dataloader.dataset.transform = transforms.Compose([
+        transforms.RandomResizedCrop(64, scale=(0.5, 1.0)),
+        transforms.RandomHorizontalFlip(),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05),
+        transforms.RandomRotation(15),
+        transforms.ToTensor(),
+        transforms.Normalize(mean, std),
+        transforms.RandomErasing(p=0.25),
+    ])
 
-    grafico.addEpochVal(epoch, train_loss, train_acc, val_loss, val_acc)
+    best_val_acc = 0.0
+    best_state = None
 
-grafico.mostraGraficoVal()
+    for epoch in range(epochs):
 
-# 7. Salvamento
-# Sugestão: mude o nome da constante no seu Enum para algo como RESNET18_CIFAR10
-model_dir = NOMES.RESNET18_TINY_IMAGE_NET.value
+        train_loss, train_acc = train(train_dataloader, model, criterion, optimizer)
+        val_loss, val_acc = eval(val_kkc_dataloader, model, criterion)
+        scheduler.step()
 
-torch.save(model.state_dict(), model_dir)
-print(f"Modelo salvo em {model_dir}")
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            best_state = copy.deepcopy(model.state_dict())
+
+        print(f"Epoch {epoch+1}/{epochs} | Loss: {train_loss:.4f} | Acc: {train_acc:.4f}| lr = {optimizer.param_groups[0]['lr']}")
+        print(f"VALIDATION | Loss: {val_loss:.4f} | Acc: {val_acc:.4f}| lr = {optimizer.param_groups[0]['lr']}")
+
+        grafico.addEpochVal(epoch, train_loss, train_acc, val_loss, val_acc)
+
+    grafico.mostraGraficoVal()
+
+    model_dir = os.path.join(split_dir, f"{NOMES.RESNET18.value}_TinyImageNet_split_{split}.pt")
+
+    torch.save(best_state, model_dir)
+    print(f"Modelo salvo em {model_dir} | Melhor acuracia de validacao: {best_val_acc:.4f}")
+
+    del model, train_dataloader, val_kkc_dataloader, optimizer, grafico, criterion, scheduler

@@ -96,6 +96,48 @@ class ResNet18Featurizer(nn.Module):
             return self.fc.weight.detach()
 
 
+class ResNet18_tinyimgnet(nn.Module):
+    """ResNet18 com stem estilo CIFAR/TinyImageNet e cabeca com dropout.
+
+    O stem original (conv 7x7/stride2 + maxpool/stride2) foi desenhado para entradas 224x224;
+    em imagens 64x64 ele reduz o mapa de features quase a nada antes da layer4, entao aqui ele
+    e trocado por conv 3x3/stride1 sem maxpool (mesma ideia usada para CIFAR).
+    """
+
+    def __init__(self, num_classes=20, weights=None):
+        super().__init__()
+        backbone = resnet18(weights=weights)
+
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = backbone.bn1
+        self.relu = backbone.relu
+        self.maxpool = nn.Identity()
+
+        self.layer1 = backbone.layer1
+        self.layer2 = backbone.layer2
+        self.layer3 = backbone.layer3
+        self.layer4 = backbone.layer4
+        self.avgpool = backbone.avgpool
+
+        self.fc = nn.Sequential(nn.Dropout(p=0.5), nn.Linear(512, num_classes))
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = self.fc(x)
+        return x
+
+
 class ResNet18_GFROR(nn.Module):
     """ResNet18 adaptado para o GFROR: 6 canais de entrada (x + x_hat) e imagens 32x32.
 

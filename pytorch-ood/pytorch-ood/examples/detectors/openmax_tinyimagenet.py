@@ -53,13 +53,10 @@ def load_split_model(split):
 
 
 def fit_loader(data_manager, split):
-    # Troca o transform do loader de treino publico para o eval_transform (sem augmentation)
-    # antes de ajustar as distribuicoes de Weibull do OpenMax -- mesma escolha feita para o
-    # Panicum, que usava o transform de validacao ao chamar detector.fit().
-    loader = data_manager.get_train_loader(split)
-    _, eval_transform = data_manager._get_transforms(split)
-    loader.dataset.transform = eval_transform
-    return loader
+    # Loader de treino com o transform de avaliacao (sem augmentation) antes de ajustar as
+    # distribuicoes de Weibull do OpenMax -- mesma escolha feita para o Panicum, que usava
+    # o transform de validacao ao chamar detector.fit().
+    return data_manager.get_train_loader(split, data_manager.eval_transforms[split])
 
 
 def collect_targets(loader):
@@ -138,7 +135,7 @@ def grid_search():
                 model = load_split_model(split)
 
                 train_dataloader = fit_loader(data_manager, split)
-                val_dataloader = data_manager.get_val_loader(split)
+                val_dataloader = data_manager.get_val_loader(split, data_manager.eval_transforms[split])
 
                 all_targets = collect_targets(val_dataloader)
 
@@ -184,7 +181,7 @@ def run_test_evaluation():
                 model = load_split_model(split)
 
                 train_dataloader = fit_loader(data_manager, split)
-                test_dataloader = data_manager.get_test_loader(split)
+                test_dataloader = data_manager.get_test_loader(split, data_manager.eval_transforms[split])
 
                 all_targets = collect_targets(test_dataloader)
 

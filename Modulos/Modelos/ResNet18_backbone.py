@@ -22,11 +22,6 @@ def ResNet18(num_classes, weights=None):
     return model
 
 
-"""
-	Network definition for our proposed CAC open set classifier. 
-
-	Dimity Miller, 2020
-"""
 
 
 class ResNet18_cac(BaseCACClassifier):
@@ -136,6 +131,32 @@ class ResNet18_tinyimgnet(nn.Module):
         x = torch.flatten(x, 1)
         x = self.fc(x)
         return x
+
+
+class ResNet18_tinyimgnet_cac(BaseCACClassifier):
+    """CAC sobre o backbone ResNet18_tinyimgnet (stem 3x3/stride1 sem maxpool, para 64x64).
+
+    Mesma ideia do ResNet18_cac, trocando o stem 7x7/stride2 + maxpool do ResNet18 padrao
+    pelo stem adaptado a imagens pequenas. O encoder devolve as 512 features do avgpool
+    (a cabeca do backbone vira Identity) e a projecao para o espaco das ancoras fica a cargo
+    da camada `classify` da BaseCACClassifier.
+    """
+
+    def __init__(self, num_classes=20, weights=None, skip_distances=False, init_weights=False, **kwargs):
+        # Guardado antes do super().__init__ porque _build_encoder e chamado la dentro.
+        self.weights = weights
+        super(ResNet18_tinyimgnet_cac, self).__init__(
+            num_classes=num_classes,
+            feat_dim=512,
+            skip_distances=skip_distances,
+            init_weights=init_weights
+        )
+
+    def _build_encoder(self) -> nn.Module:
+        encoder = ResNet18_tinyimgnet(num_classes=self.num_classes, weights=self.weights)
+        # Sem a cabeca de classificacao: o forward do backbone passa a devolver as features.
+        encoder.fc = nn.Identity()
+        return encoder
 
 
 class ResNet18_GFROR(nn.Module):

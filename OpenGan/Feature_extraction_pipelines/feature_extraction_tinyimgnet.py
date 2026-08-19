@@ -1,43 +1,52 @@
-from Feat_extraction.ResNet18_feature_extraction import ResNet18_feature_extraction
-from Feat_extraction.LeNet_feature_extraction import LeNet_feature_extraction
-from torchvision.datasets import MNIST, Omniglot
-from torch.utils.data import DataLoader,Subset,ConcatDataset
-import torchvision.transforms as transforms
-import numpy as np
-import torch.nn as nn
-import torch.optim as optim
+
 
 from Utils import fix_random_seed, NOMES
-from Datasets.Load_Data_datasets_secundarios import Tinyimagenet_loader
+from Datasets.tinyimagenet_loader import TinyImageNet_loader
 import torch
-import os
+import os,sys
 device = 'cuda:0'
 seed = 42
 fix_random_seed(seed)
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(CURRENT_DIR)
+sys.path.append(PARENT_DIR)
 
+from Feat_extraction.ResNet18_64x64_feature_extraction import ResNet18_64x64_feature_extraction
+
+num_classes = 20
 
 
 def main():
-    num_classes = 200
-    model = ResNet18_feature_extraction(num_classes=num_classes)
-    model.load_model(torch.load(NOMES.RESNET18_TINY_IMAGE_NET.value))
-
-    features_dir = os.path.join(NOMES.FEATS_DIR.value,NOMES.TINY_IMAGE_NET.value,NOMES.RESNET18.value)
-    
-    data = Tinyimagenet_loader(bs=256)
+    data = TinyImageNet_loader()
+    print(data.splits)
 
     
-    train_dataloader   =  data.load_train(transform=NOMES.TINY_IMAGE_NET_RESNET18_VAL_TEST_TRANSFORMS.value)
-    val_dataloader  =  data.load_val(transform=NOMES.TINY_IMAGE_NET_RESNET18_VAL_TEST_TRANSFORMS.value)
-    test_dataloader =  data.load_test(transform=NOMES.TINY_IMAGE_NET_RESNET18_VAL_TEST_TRANSFORMS.value)
+    for fold in range(5):
+        model = ResNet18_64x64_feature_extraction(num_classes=num_classes)
+        model.load_model(torch.load(os.path.join(f"/home/alexandreselani/Desktop/Experimento_tinyimgnet/ResNet18/Split_{fold}/ResNet18_TinyImageNet_split_{fold}.pt")))
 
-    if not os.path.exists(features_dir):
-        os.makedirs(features_dir, exist_ok=True)
+        features_dir = os.path.join(NOMES.FEATS_DIR.value,"Tinyimgnet",NOMES.RESNET18.value,f"Split_{fold}")
+
+        train_dataloader    = data.get_train_loader(fold, data.eval_transforms[fold])
+        val_dataloader      = data.get_val_loader(fold, data.eval_transforms[fold])
+        test_dataloader     = data.get_test_loader(fold,data.eval_transforms[fold])
+
+        kkc_val_dataloader  = data.get_val_known_loader(fold, data.eval_transforms[fold])
+        kkc_test_dataloader = data.get_test_known_loader(fold,data.eval_transforms[fold])
+
+        uuc_val_dataloader = data.get_val_unknown_loader(fold,data.eval_transforms[fold])
+        uuc_test_dataloader = data.get_test_unknown_loader(fold,data.eval_transforms[fold])
+
+        if not os.path.exists(features_dir):
+            os.makedirs(features_dir, exist_ok=True)
     #torch.save(model.model.state_dict(), features_dir + "modelo.pth")
-    model.save_features(train_dataloader,features_dir,"treino")
-    model.save_features(val_dataloader,features_dir,"val")
-    model.save_features(test_dataloader,features_dir,"test")
-    
+        model.save_features(train_dataloader,features_dir,"train")
+        model.save_features(kkc_val_dataloader,features_dir,"kkc_val")
+        model.save_features(uuc_test_dataloader,features_dir,"uuc_test")
+        model.save_features(kkc_test_dataloader,features_dir,"kkc_test")
+        model.save_features(test_dataloader,features_dir,"test")
+        model.save_features(val_dataloader,features_dir,"val")
+        model.save_features(uuc_val_dataloader,features_dir,"uuc_val")
 
 if __name__ == "__main__":
     main()

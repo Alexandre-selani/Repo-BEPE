@@ -65,14 +65,11 @@ for split in range(N_SPLITS):
     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-2)
     scheduler = build_scheduler(optimizer, epochs=epochs, warmup_epochs=warmup_epochs)
 
-    train_dataloader = data_manager.get_train_loader(split)
-    val_kkc_dataloader = data_manager.get_val_known_loader(split)
-
-    # Augmentacao mais forte que o padrao do loader (so nesse script, loader compartilhado intacto):
-    # com 10k imagens de treino/20 classes, o crop leve (0.8-1.0) + flip do loader nao bastava.
-    # Reusa a mesma media/desvio (do cache do loader) para manter a normalizacao consistente com a validacao.
-    mean, std = data_manager._compute_norm_stats(split)
-    train_dataloader.dataset.transform = transforms.Compose([
+    # Augmentacao mais forte que a train_transform padrao do modulo (so nesse script):
+    # com 10k imagens de treino/20 classes, o crop leve (0.8-1.0) + flip nao bastava.
+    # Reusa a media/desvio do split para manter a normalizacao consistente com a validacao.
+    mean, std = data_manager.norm_stats[split]
+    strong_train_transform = transforms.Compose([
         transforms.RandomResizedCrop(64, scale=(0.5, 1.0)),
         transforms.RandomHorizontalFlip(),
         transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05),
@@ -81,6 +78,9 @@ for split in range(N_SPLITS):
         transforms.Normalize(mean, std),
         transforms.RandomErasing(p=0.25),
     ])
+
+    train_dataloader = data_manager.get_train_loader(split, strong_train_transform)
+    val_kkc_dataloader = data_manager.get_val_known_loader(split, data_manager.eval_transforms[split])
 
     best_val_acc = 0.0
     best_state = None

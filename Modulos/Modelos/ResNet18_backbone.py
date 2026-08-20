@@ -133,6 +133,55 @@ class ResNet18_tinyimgnet(nn.Module):
         return x
 
 
+class ResNet18_tinyimgnet_featurizer(nn.Module):
+    """Wrapper que retorna (logits, features) no forward, usando o stem do ResNet18_tinyimgnet.
+
+    Mantem os mesmos nomes de camadas do ResNet18_tinyimgnet (conv1, bn1, layer1, ..., fc)
+    para compatibilidade de state_dict com modelos treinados com aquele backbone.
+    """
+
+    def __init__(self, num_classes=20, weights=None):
+        super().__init__()
+        backbone = ResNet18_tinyimgnet(num_classes=num_classes, weights=weights)
+
+        self.conv1 = backbone.conv1
+        self.bn1 = backbone.bn1
+        self.relu = backbone.relu
+        self.maxpool = backbone.maxpool
+
+        self.layer1 = backbone.layer1
+        self.layer2 = backbone.layer2
+        self.layer3 = backbone.layer3
+        self.layer4 = backbone.layer4
+        self.avgpool = backbone.avgpool
+
+        # Mesma cabeca (Dropout + Linear) do ResNet18_tinyimgnet.
+        self.fc = backbone.fc
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+
+        x = self.avgpool(x)                          # (batch, 512, 1, 1)
+        feats = torch.flatten(x, 1)                  # (batch, 512)
+        logits = self.fc(feats)                      # (batch, num_classes)
+        return logits, feats
+
+    def getPerClassWeights(self):
+        """Obtem os pesos da camada linear final do classificador."""
+        with torch.no_grad():
+            if isinstance(self.fc, nn.Sequential):
+                return self.fc[-1].weight.detach()
+            return self.fc.weight.detach()
+
+
 class ResNet18_tinyimgnet_cac(BaseCACClassifier):
     """CAC sobre o backbone ResNet18_tinyimgnet (stem 3x3/stride1 sem maxpool, para 64x64).
 
@@ -157,6 +206,67 @@ class ResNet18_tinyimgnet_cac(BaseCACClassifier):
         # Sem a cabeca de classificacao: o forward do backbone passa a devolver as features.
         encoder.fc = nn.Identity()
         return encoder
+
+
+class ResNet18_tinyimgnet_GFROR(nn.Module):
+    """ResNet18 para o GFROR no TinyImageNet: 6 canais de entrada (x + x_hat) e imagens 64x64.
+
+    Combina as duas adaptacoes que ja existem neste modulo:
+      - stem do ResNet18_tinyimgnet (conv 3x3/stride1, sem maxpool), adequado a 64x64;
+      - cabeca dupla do ResNet18_GFROR (classificacao + predicao da transformacao).
+
+    Como no ResNet18_GFROR, layer4_class e layer4_trans apontam para o mesmo modulo:
+    as duas cabecas compartilham os pesos da layer4 e se separam so nas camadas lineares.
+
+    Saidas:
+        classification_out: (batch, num_classes)
+        transformation_out: (batch, num_transforms)
+    """
+
+    def __init__(self, num_classes=20, num_transforms=8, weights=None):
+        super().__init__()
+        backbone = resnet18(weights=weights)
+
+        # Stem para imagens pequenas: 64x64 chega em 8x8 no fim da layer4.
+        self.conv1 = nn.Conv2d(6, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = backbone.bn1
+        self.relu = backbone.relu
+        self.maxpool = nn.Identity()
+
+        self.layer1 = backbone.layer1
+        self.layer2 = backbone.layer2
+        self.layer3 = backbone.layer3
+
+        # Mesmo comportamento do ResNet18_GFROR: os dois atributos apontam para o
+        # mesmo layer4, ou seja, as duas cabecas compartilham esses pesos.
+        self.layer4_class = backbone.layer4
+        self.avgpool_class = backbone.avgpool
+
+        self.layer4_trans = backbone.layer4
+        self.avgpool_trans = backbone.avgpool
+
+        self.classification = nn.Linear(512, num_classes)
+        self.transformation = nn.Linear(512, num_transforms)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+
+        x_class = self.avgpool_class(self.layer4_class(x))
+        x_trans = self.avgpool_trans(self.layer4_trans(x))
+
+        x_class = torch.flatten(x_class, 1)
+        x_trans = torch.flatten(x_trans, 1)
+
+        classification_out = self.classification(x_class)
+        transformation_out = self.transformation(x_trans)
+        return classification_out, transformation_out
 
 
 class ResNet18_GFROR(nn.Module):

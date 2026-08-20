@@ -12,7 +12,7 @@ import time
 import math
 import numpy as np
 import torch
-import datasets.utils as dataHelper
+
 from networks import openSetClassifier
 
 try:

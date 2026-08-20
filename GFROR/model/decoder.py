@@ -138,3 +138,40 @@ class Decoder320(nn.Module):
         out = self.linear(z)
         out = out.view(out.shape[0], 512, 20, 20)
         return self.deconv(out)
+
+class Decoder64(nn.Module):
+    """Decoder espelhando o Encoder64: 4 -> 8 -> 16 -> 32 -> 64.
+
+    Saida com Sigmoid porque as imagens do TinyImageNet entram apenas com
+    ToTensor() (sem normalizacao), ou seja, ja estao no intervalo [0, 1].
+    """
+
+    def __init__(self, latent_size=512):
+        super().__init__()
+        self.linear = nn.Linear(latent_size, 512 * 4 * 4)
+
+        self.deconv = nn.Sequential(
+            # 4x4 -> 8x8
+            nn.ConvTranspose2d(512, 256, 4, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2),
+
+            # 8x8 -> 16x16
+            nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2),
+
+            # 16x16 -> 32x32
+            nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.2),
+
+            # 32x32 -> 64x64
+            nn.ConvTranspose2d(64, 3, 4, stride=2, padding=1),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, z):
+        out = self.linear(z)
+        out = out.view(out.shape[0], 512, 4, 4)
+        return self.deconv(out)

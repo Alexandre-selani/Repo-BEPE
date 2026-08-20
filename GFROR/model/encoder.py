@@ -206,3 +206,43 @@ class Encoder320(nn.Module):
         out = self.linear(out)
         return clamp_to_unit_sphere(out)
 
+
+
+class Encoder64(nn.Module):
+    """Encoder para TinyImageNet (64x64), no mesmo estilo do Encoder320.
+
+    Reducao espacial: 64 -> 32 -> 16 -> 8 -> 4, com latente projetado
+    na esfera unitaria (mesma convencao dos demais encoders do repo).
+    """
+
+    def __init__(self, latent_size=512):
+        super().__init__()
+        self.features = nn.Sequential(
+            # 64x64 -> 32x32
+            nn.Dropout2d(0.2),
+            nn.Conv2d(3, 64, 3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.2),
+
+            # 32x32 -> 16x16
+            nn.Conv2d(64, 128, 3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2),
+
+            # 16x16 -> 8x8
+            nn.Conv2d(128, 256, 3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2),
+
+            # 8x8 -> 4x4
+            nn.Conv2d(256, 512, 3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(0.2),
+        )
+        self.linear = nn.Linear(512 * 4 * 4, latent_size)
+
+    def forward(self, x):
+        out = self.features(x)
+        out = out.view(out.shape[0], -1)
+        out = self.linear(out)
+        return clamp_to_unit_sphere(out)

@@ -16,7 +16,7 @@ import os
 # ─── Config ──────────────────────────────────────────────────────────────
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE=128
-MODEL = "LeNet"
+MODEL = "ResNet18"
 METHOD = "COSTARR"
 DATASET = "MNIST/OMNI"
 MC_NAME = f"{METHOD} - {DATASET}"
@@ -36,7 +36,7 @@ if MODEL == "LeNet":
     transform = NOMES.LENET_MNIST_OMNI_TRANSFORMS.value
 elif MODEL == "ResNet18":
     model = ResNet18Featurizer().to(DEVICE)
-    transform = NOMES.RESNET18_MNIST_OMNI_TRANSFORMS.value
+    transform = NOMES.RESNET18_MNIST_OMNI_EVAL_TRANSFORMS.value
 
 model.eval()
 model.load_state_dict(torch.load(f"/home/alexandreselani/Desktop/Experimento_mnist_omni/{MODEL}/{MODEL}_mnist_omni.pt"))

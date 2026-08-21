@@ -25,11 +25,18 @@ class NOMES(Enum):
         transforms.Resize(28),
         transforms.ToTensor(),
     ])
-    RESNET18_MNIST_OMNI_TRANSFORMS = transforms.Compose([
+    RESNET18_MNIST_OMNI_EVAL_TRANSFORMS = transforms.Compose([
         transforms.Grayscale(num_output_channels=3),
-        transforms.Resize(32),
+        transforms.Resize(128),
         transforms.ToTensor(),
     ])
+
+    RESNET18_MNIST_OMNI_TRAIN_TRANSFORMS = transforms.Compose([
+    transforms.Grayscale(num_output_channels=3),
+    transforms.Resize(128),
+    transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1)),
+    transforms.ToTensor(),
+])
 
     # ── Panicum ───────────────────────────────────────────────────────────────
     PANICUM_SPLITS = "/home/alexandreselani/Desktop/Experimento_panicum/Indices_panicum/panicum_splits.pt"

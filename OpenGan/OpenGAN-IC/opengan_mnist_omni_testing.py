@@ -69,13 +69,13 @@ fix_random_seed(manualSeed)
 
 ################## set attributes for this project/experiment ##################
 # config result folder
-exp_dir = '/home/alexandreselani/Desktop/OpenGan/OpenGAN-IC/Experimentos/Mnist_omni/OpenGan_Mnist_omniLeNet' # experiment directory, used for reading the init model
-
-modelFlag = str(NOMES.RESNET18)
+modelFlag = NOMES.RESNET18.value
 
 # This is the directory from which we read a checkpoint.
 # We are showing a GAN-fea model, which is trained only on the real, closed-set images.
 project_name = 'OpenGan_Mnist_omni' + modelFlag
+
+exp_dir = os.path.join('/home/alexandreselani/Desktop/OpenGan/OpenGAN-IC/Experimentos/Mnist_omni', project_name)
 
 # set device, which gpu to use.
 device ='cpu'
@@ -96,13 +96,14 @@ bestEpoch = 99
 
 
 # Number of channels in the training images. For color images this is 3
-nc = 84
+# Dimensao das features do extrator: ResNet18 -> 512 (a LeNet usava 84).
+nc = 512
 # Size of z latent vector (i.e. size of generator input)
-nz = 81
+nz = 100
 # Size of feature maps in generator
-ngf = 100
+ngf = 64
 # Size of feature maps in discriminator
-ndf = 100
+ndf = 64
 # Beta1 hyperparam for Adam optimizers
 beta1 = 0.5
 # Number of GPUs available. Use 0 for CPU mode.
@@ -142,7 +143,7 @@ class FeatDataset(Dataset):
 maiores_rocs = []
 melhores_epochs = []
 
-path_to_feat = os.path.join(NOMES.FEATS_DIR.value,NOMES.MNIST_OMNI.value,"LeNet")
+path_to_feat = os.path.join(NOMES.FEATS_DIR.value,NOMES.MNIST_OMNI.value,modelFlag)
 
 mnist_val_closedset  = torch.load(os.path.join(path_to_feat,"mnist_val_features.pt"))
 mnist_val_closedset_dataset = FeatDataset(mnist_val_closedset["features"])
@@ -155,16 +156,22 @@ dataloader_val_openset = DataLoader(omniglot_val_openset_dataset, batch_size=bat
 maior_roc_iteracao = -1
 melhor_epoch = -1
 
+# Checkpoint do melhor discriminador visto ate agora, gravado so quando a AUROC melhora.
+path_best_D = os.path.join(save_dir, 'best.DNet')
+
 for epoch in range(num_epochs):
     print(f"EPOCH {epoch}")
     gc.collect()
     torch.cuda.empty_cache()
 
-    
-    netD = Discriminator(ngpu=ngpu, nc=nc, ndf=ndf).to(device)
     path_to_D = os.path.join(save_dir,'epoch-{}.DNet'.format(epoch+1))
-    
-    netD.load_state_dict(torch.load(path_to_D))
+    if not os.path.exists(path_to_D):
+        print(f"  checkpoint da epoca {epoch+1} nao existe, pulando")
+        continue
+
+    netD = Discriminator(ngpu=ngpu, nc=nc, ndf=ndf).to(device)
+    state_dict_D = torch.load(path_to_D)
+    netD.load_state_dict(state_dict_D)
     netD.eval()
     
 
@@ -216,16 +223,29 @@ for epoch in range(num_epochs):
 
     roc_score, roc_to_plot = evaluate_openset(-conf_close_mnist, -conf_open_omniglot)
 
-    plt.plot(roc_to_plot['fp'], roc_to_plot['tp'])
-    plt.grid('on')
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('ROC score {:.5f}'.format(roc_score))
-            
-    print(roc_score)
-    if(roc_score>maior_roc_iteracao):
-        maior_roc_iteracao=roc_score
-        melhor_epoch = epoch+1
+    print(f"  epoca {epoch+1}: AUROC {roc_score:.5f}")
+
+    # So grava o checkpoint quando a AUROC supera a melhor vista ate agora.
+    if roc_score > maior_roc_iteracao:
+        maior_roc_iteracao = roc_score
+        melhor_epoch = epoch + 1
+
+        torch.save(state_dict_D, path_best_D)
+
+        # Curva ROC do melhor modelo: figura nova a cada vez, senao as curvas
+        # de todas as epocas se acumulam nos mesmos eixos.
+        plt.figure()
+        plt.plot(roc_to_plot['fp'], roc_to_plot['tp'])
+        plt.grid('on')
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('ROC score {:.5f} (epoch {})'.format(roc_score, melhor_epoch))
+        plt.savefig(os.path.join(save_dir, 'best_roc.png'), bbox_inches='tight')
+        plt.close()
+
+        print(f"  novo melhor: AUROC {roc_score:.5f} -> {path_best_D}")
+
+    del netD, state_dict_D
 
 maiores_rocs.append(maior_roc_iteracao)
 melhores_epochs.append(melhor_epoch)
@@ -235,5 +255,10 @@ for iter, roc in enumerate(maiores_rocs):
 
 
 print(f"roc media = {np.array(maiores_rocs).mean()}")
+
+print("\n" + "=" * 60)
+print(f"Melhor checkpoint: epoca {melhor_epoch} (AUROC {maior_roc_iteracao:.5f})")
+print(f"Gravado em: {path_best_D}")
+print("=" * 60)
 
 

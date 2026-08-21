@@ -15,8 +15,8 @@ import os
 fix_random_seed(42)
 device = "cuda:0"
 
-lr=0.0001
-epochs = 30
+lr=0.001
+epochs = 20
 bs=256
 
 num_classes = 10
@@ -27,12 +27,19 @@ os.makedirs(output_dir,exist_ok=True)
 model = ResNet18(num_classes)
 model = model.to(device)
 
-data_manager = Mnist_omni_loader(bs,transform=NOMES.RESNET18_MNIST_OMNI_TRANSFORMS.value)
+#it is wrong, I should be using eval transforms for val set. It doesnt affect training.
+data_manager_train = Mnist_omni_loader(bs,transform=NOMES.RESNET18_MNIST_OMNI_TRAIN_TRANSFORMS.value)
+data_manager_val = Mnist_omni_loader(bs,transform=NOMES.RESNET18_MNIST_OMNI_EVAL_TRANSFORMS.value)
 
-train_dataloader,val_mnist_dataloader = data_manager.load_train(), data_manager.load_mnist_val()
+train_dataloader= data_manager_train.load_train()
+val_mnist_dataloader = data_manager_val.load_mnist_val()
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=5e-4)
+optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=5e-4)
+
+# Cosine annealing: decai o lr suavemente de `lr` ate ~0 ao longo das epocas,
+# refinando os pesos no fim do treino sem hiperparametro extra para ajustar.
+scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
 
 grafico = AnaliseGraficaVal("ResNet18","Mnist+Omni",dir=output_dir)
 
@@ -45,6 +52,9 @@ for epoch in range(epochs):
     print(f"VALIDATION || Epoch {epoch+1}/{epochs} | Loss: {val_loss:.4f} | Acc: {val_acc:.4f}| lr = {optimizer.param_groups[0]['lr']}")
 
     grafico.addEpochVal(epoch,train_loss,train_acc,val_loss,val_acc)
+
+    # Depois dos prints: assim o lr exibido e o que foi usado nesta epoca.
+    scheduler.step()
 
 grafico.mostraGraficoVal()
 

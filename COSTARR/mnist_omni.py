@@ -81,7 +81,7 @@ def test(epsilons):
         metric_logger.update_mc(epsilon,predicts,labels,labels)
     metric_logger.aggregate("Test.csv")
 
-thresholds = np.arange(0.2,0.7,0.01)
+thresholds = np.arange(0,1,0.01)
 #train()
 
 if not costarr_calcs:

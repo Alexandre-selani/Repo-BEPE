@@ -87,6 +87,13 @@ def test(test_loader,detector):
     return metricas._metricas(),predicts,labels  
 
 
+min_tailsize = 0
+max_tailsize = 1000
+step_tail = 100
+tails = list(range(min_tailsize, max_tailsize+1, step_tail))
+alphas = [2,4,6,8,10]
+epsilons = np.arange(0.2,1,0.2)
+
 def grid_search():
     nomeDataset = "Mnist_omni"
     output_dir = "/home/alexandreselani/Desktop/pytorch-ood/pytorch-ood/experimento_mnist_omniglot/Resultados OpenMax/ResNet18/Val/"
@@ -94,13 +101,6 @@ def grid_search():
     
     
     data_manager = Mnist_omni_loader(bs=256,transform=NOMES.RESNET18_MNIST_OMNI_EVAL_TRANSFORMS.value)
-
-    min_tailsize = 200
-    max_tailsize = 700
-    step_tail = 100
-    tails = list(range(min_tailsize, max_tailsize+1, step_tail))
-    alphas = [1,3,5,10]
-    epsilons = np.arange(0.2,1,0.2)
 
     # Melhor combinacao vista ate agora, pelo F1 macro.
     best_f1 = -1.0
@@ -172,14 +172,6 @@ def test_hiperparameters():
 
 
     data_manager = Mnist_omni_loader(bs=256,transform=NOMES.RESNET18_MNIST_OMNI_EVAL_TRANSFORMS.value)
-
-    min_tailsize = 200
-    max_tailsize = 700
-    step_tail = 100
-    tails = list(range(min_tailsize, max_tailsize+1, step_tail))
-    alphas = [1,3,5,10]
-    epsilons = np.arange(0.2,1,0.2)
-
 
     for alpha in alphas:
         for epsilon in epsilons:

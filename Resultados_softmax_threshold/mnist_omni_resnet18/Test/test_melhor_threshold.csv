@@ -1,0 +1,2 @@
+epsilon,F1 macro_mean,F1 macro_std,accuracy_mean,accuracy_std,UUC Accuracy_mean,UUC Accuracy_std,inner metric_mean,inner metric_std,outer metric_mean,outer metric_std,halfpoint_mean,halfpoint_std,auroc_mean,auroc_std
+0.990,0.890,0.000,0.882,0.000,0.796,0.000,1.000,0.000,0.882,0.000,0.967,0.000,0.956,0.000

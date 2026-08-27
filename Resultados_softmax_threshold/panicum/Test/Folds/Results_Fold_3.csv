@@ -1,0 +1,2 @@
+epsilon,F1 macro,accuracy,UUC Accuracy,inner metric,outer metric,halfpoint,auroc
+0.880,0.953,0.951,0.920,1.000,0.951,0.972,0.963

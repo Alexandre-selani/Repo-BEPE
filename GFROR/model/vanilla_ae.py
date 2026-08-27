@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-from model.encoder import Encoder,Encoder320,Encoder64,Encoder_eucalyptus
-from model.decoder import Decoder,Decoder320,Decoder64,Decoder_eucalyptus
+from model.encoder import Encoder,Encoder320,Encoder64,Encoder128,Encoder_eucalyptus
+from model.decoder import Decoder,Decoder320,Decoder64,Decoder128,Decoder_eucalyptus
 
 class VanillaAE(nn.Module):
     def __init__(self, latent_size=100):
@@ -65,4 +65,23 @@ class VanillaAE_eucalyptus(nn.Module):
         self.decoder = Decoder_eucalyptus(latent_size)
  
     def forward(self, x):
+        return self.decoder(self.encoder(x))
+
+class VanillaAE128(nn.Module):
+    """Autoencoder para MNIST+Omniglot com ResNet18 (entradas 128x128).
+
+    Tamanho definido pelas transformacoes RESNET18_MNIST_OMNI_TRAIN_TRANSFORMS /
+    RESNET18_MNIST_OMNI_EVAL_TRANSFORMS do enum NOMES: Grayscale(3 canais) +
+    Resize(128) + ToTensor(), ou seja, tensores 3x128x128 em [0, 1].
+    """
+
+    def __init__(self, latent_size=256):
+        super().__init__()
+
+        self.latent_size = latent_size
+        self.encoder = Encoder128(latent_size)
+        self.decoder = Decoder128(latent_size)
+
+    def forward(self, x):
+
         return self.decoder(self.encoder(x))

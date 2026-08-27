@@ -1,0 +1,46 @@
+% Continuacao da subsecao "Closed Set accuracy is saturated in the agricultural benchmarks"
+
+\Cref{fig:plots_features} illustrates how features are distributed in the latent
+space from agricultural benchmarks in contrast to the other class of benchmarks.
+The space shown is that of the logits, where the MSP decision is actually taken; in
+the two agricultural benchmarks it is only two-dimensional, so the panels are exact
+rather than projections.
+
+The two panels show the same structure. Each known class occupies a compact region with large logit magnitude, while the unknown class is
+strung along the diagonal, concentrated in the low-margin region between the two
+known responses: on Ceratocystis the network drives the two logits into a nearly
+anti-correlated line, with Ground and Healthy at its two extremes and Ceratocystis
+filling the segment in between and clustering around the origin.
+
+This geometry is what makes a plain maximum softmax probability threshold so
+effective on the agricultural benchmarks.~\cite{vaze2022} show that Open Set
+performance is largely a by-product of Closed Set discriminative ability: across
+architectures and datasets they report a strong correlation between Closed Set
+accuracy and Open Set AUROC, and conclude that a baseline that simply thresholds the
+maximum softmax is competitive with, and
+frequently superior to, methods designed specifically for OSR. The
+mechanism is visible in \Cref{fig:plots_features}: cross-entropy training pushes each
+known class into its own high-magnitude, low-entropy region of the logit space, and
+the better the Closed Set problem is solved, the further apart and the more confident
+those regions become. Anything that does not belong to them lands near the boundary,
+where the softmax response trends towards an uniform distribution and the threshold rejects it, with no
+novelty-specific mechanisms involved.
+
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figs/plots_features_logits_test.pdf}
+  \caption{Logit space of each benchmark's trained backbone, on the first fold/split
+  of the test set. Known classes are coloured, unknown samples are drawn as black
+  crosses. In (a) the known label space has two classes, so the axes are the logits
+  themselves and no projection is involved: Ground and Healthy occupy compact,
+  high-magnitude regions at the two extremes of a nearly anti-correlated line, while
+  Ceratocystis fills the segment between them and clusters around the origin, where
+  the softmax response is flat. In (b) and (c) the logit space has $10$ and $20$
+  dimensions and is projected with t-SNE: the digit modes of MNIST are equally
+  separated, with Omniglot filling the low-magnitude core between them, whereas on
+  TinyImageNet the known modes are diffuse and the unknown samples are interleaved
+  with them. Points are subsampled per class, preserving the known/unknown ratio of
+  each split.}
+  \label{fig:plots_features}
+\end{figure}

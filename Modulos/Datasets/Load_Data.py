@@ -27,9 +27,13 @@ class Mnist_omni_loader:
     - load_gridsearch: Carrega conjunto misto para busca de hiperparametros.
     - load_mnist_test: Carrega o teste padrao do MNIST.
     - load_test: Carrega o teste final misto (MNIST + Omniglot).
+
+    invert_colors (padrao True) inverte apenas o Omniglot, para que ambos os
+    conjuntos fiquem com tracos claros sobre fundo escuro. Com False os dois
+    conjuntos ficam com polaridades opostas e o problema se torna trivial.
     """
 
-    def __init__(self, bs,transform):
+    def __init__(self, bs,transform,invert_omni_colors=True):
         self.bs = bs
         self.splits = torch.load(NOMES.MNIST_OMNI_SPLITS.value, weights_only=False)
         
@@ -39,17 +43,30 @@ class Mnist_omni_loader:
         self.mnist_train = MNIST(root="/home/alexandreselani/Desktop/Experimento_mnist_omni/data", download=True, transform=transform, train=True)
         self.mnist_test = MNIST(root="/home/alexandreselani/Desktop/Experimento_mnist_omni/data", download=True, transform=transform, train=False)
 
+        # O Omniglot vem com tracos pretos sobre fundo branco; o MNIST e o inverso.
+        # Sem inverter, a intensidade media do pixel sozinha separa conhecido de
+        # desconhecido perfeitamente (AUROC 1.0, zero sobreposicao), ou seja, o
+        # benchmark pode ser resolvido sem olhar a forma do caractere. Inverter o
+        # Omniglot remove esse atalho. Os transforms terminam em ToTensor(), entao
+        # a inversao age sobre um tensor float em [0, 1].
+        omniglot_transform = transform
+        if invert_omni_colors:
+            omniglot_transform = transforms.Compose([
+                transform,
+                transforms.RandomInvert(p=1.0),
+            ])
+
         self.test_omniglot = Omniglot(
             root="/home/alexandreselani/Desktop/Experimento_mnist_omni/data",
             download=True,
-            transform=transform,
+            transform=omniglot_transform,
             target_transform=ToUnknown()
         )
 
         self.val_omniglot = Omniglot(
             root="/home/alexandreselani/Desktop/Experimento_mnist_omni/data",
             download=True,
-            transform=transform,
+            transform=omniglot_transform,
             target_transform=ToUnknown(),
             background=False
         )

@@ -1,0 +1,5 @@
+experiment,best_threshold,F1 macro_test_mean,F1 macro_test_std,accuracy_test_mean,accuracy_test_std,UUC Accuracy_test_mean,UUC Accuracy_test_std,inner metric_test_mean,inner metric_test_std,outer metric_test_mean,outer metric_test_std,halfpoint_test_mean,halfpoint_test_std,auroc_test_mean,auroc_test_std
+mnist_omni_resnet18,0.990,0.890,0.000,0.882,0.000,0.796,0.000,1.000,0.000,0.882,0.000,0.967,0.000,0.956,0.000
+panicum,0.880,0.936,0.020,0.931,0.020,0.925,0.034,1.000,0.000,0.931,0.020,0.936,0.026,0.971,0.027
+eucalyptus_dataset-1,0.990,0.934,0.029,0.941,0.027,0.945,0.034,1.000,0.000,0.941,0.027,0.935,0.028,0.977,0.010
+tinyimgnet,0.570,0.611,0.030,0.636,0.023,0.637,0.033,0.893,0.018,0.672,0.021,0.635,0.040,0.743,0.020

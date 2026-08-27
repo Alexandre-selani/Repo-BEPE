@@ -1,0 +1,5 @@
+dataset,n_folds,intra_kkc_mean,intra_kkc_std,inter_kkc_mean,inter_kkc_std,kkc_vs_uuc_mean,kkc_vs_uuc_std,intra_kkc_macro_mean,intra_kkc_macro_std,inter_kkc_macro_mean,inter_kkc_macro_std
+mnist_omni,1,0.8839,0.0000,0.8142,0.0000,0.7215,0.0000,0.8849,0.0000,0.8170,0.0000
+panicum,5,0.6003,0.0327,0.3835,0.0280,0.3889,0.0190,0.6025,0.0385,0.3835,0.0280
+tinyimgnet,5,0.3044,0.0195,0.0399,0.0024,0.0412,0.0015,0.3044,0.0195,0.0399,0.0024
+ceratocystis,5,0.8240,0.0076,0.6057,0.0143,0.7034,0.0053,0.8240,0.0080,0.6057,0.0143
